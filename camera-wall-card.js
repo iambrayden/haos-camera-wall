@@ -1255,6 +1255,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .cam-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cam-name small { font-size: 11px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cam-row button { padding: 6px 9px; }
+.cam-name small.links { white-space: normal; opacity: 0.85; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; cursor: pointer; }
 `;
 
@@ -1368,6 +1369,24 @@ class CameraWallCardEditor extends HTMLElement {
     return h("label", { class: "check" }, box, text);
   }
 
+  _links(cam) {
+    if (!cam) return "";
+    const describe = (id) => {
+      const st = this._hass.states[id];
+      if (!st) return `${id} (missing)`;
+      if (id.startsWith("event.")) {
+        const t = parseTime(st.state);
+        return `${id} (${t ? `last ${since(t)}${since(t) === "just now" ? "" : " ago"}` : "never fired"})`;
+      }
+      return `${id} (${st.state}, ${since(Date.parse(st.last_changed))})`;
+    };
+    const part = (label, ids) => `${label}: ${ids.length ? ids.map(describe).join(", ") : "none found"}`;
+    const out = [part("Motion", cam.motion)];
+    if (cam.ding.length || cam.platform === "ring") out.push(part("Doorbell", cam.ding));
+    if (cam.detections.length) out.push(`Detections: ${cam.detections.length}`);
+    return out.join(" · ");
+  }
+
   _renderView(view, i, views, cams) {
     const byId = new Map(cams.map((c) => [c.entity, c]));
     const items = () => [].concat(view.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : { ...c })).filter((c) => c.entity);
@@ -1438,7 +1457,13 @@ class CameraWallCardEditor extends HTMLElement {
           "div",
           { class: "cam-row" },
           h("span", { class: "num" }, String(k + 1)),
-          h("div", { class: "cam-name" }, input, h("small", {}, `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}`)),
+          h(
+            "div",
+            { class: "cam-name" },
+            input,
+            h("small", {}, `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}`),
+            h("small", { class: "links" }, this._links(cam)),
+          ),
           up,
           down,
           del,
