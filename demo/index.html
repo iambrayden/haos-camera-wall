@@ -137,7 +137,19 @@ async function callApi(method, path) {
 
 const card = document.getElementById("card");
 const areaReg = Object.fromEntries(Object.entries(areas).map(([id, name]) => [id, { area_id: id, name }]));
-const push = () => { card.hass = { states: { ...states }, entities, devices, areas: areaReg, callApi, hassUrl: (p) => p }; };
+let dashboard = null;
+async function callWS(msg) {
+  if (msg.type === "lovelace/config") return JSON.parse(JSON.stringify(dashboard));
+  if (msg.type === "lovelace/config/save") {
+    dashboard = msg.config;
+    window.savedDashboard = msg.config;
+    const cardCfg = dashboard.views[0].cards[0];
+    setTimeout(() => { card.setConfig(cardCfg); push(); }, 50);
+    return null;
+  }
+  throw new Error(`unknown ${msg.type}`);
+}
+const push = () => { card.hass = { states: { ...states }, entities, devices, areas: areaReg, callApi, callWS, user: { is_admin: true }, hassUrl: (p) => p }; };
 
 const params = new URLSearchParams(location.search);
 const config = { title: "Cameras", refresh: 10, ...(params.has("cols") ? { columns: Number(params.get("cols")) } : {}) };
@@ -156,7 +168,9 @@ if (params.has("props")) {
     { name: "Everything" },
   ];
 }
-card.setConfig(config);
+const cardConfig = { type: "custom:camera-wall-card", ...config };
+dashboard = { title: "Cameras", views: [{ title: "Cameras", panel: true, cards: [cardConfig] }] };
+card.setConfig(JSON.parse(JSON.stringify(cardConfig)));
 push();
 if (params.has("editor")) {
   const ed = document.createElement("camera-wall-card-editor");
