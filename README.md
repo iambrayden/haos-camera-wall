@@ -61,11 +61,11 @@ Press the gear in the top right of the card (admins only). It opens a panel wher
 
 - Rename the **main tab** and pick which cameras it shows.
 - Add a **property tab** for each property, name it, and pick its cameras.
-- Type your own name for any camera and put the cameras in order.
+- Switch a tab to **Rename & order** to rename a camera with its ✎ button and move it with the arrows.
 
 Changes show on the card as you make them. **Save** writes them to the dashboard so every device gets them. **Cancel** puts everything back. The same editor is also in the dashboard's own card editor.
 
-Under each camera the panel lists the motion and doorbell entities the card linked it to and when they last fired. If the activity feed stays empty, look there first.
+In **Rename & order**, tick **Show linked motion and doorbell sensors** to see which entities each camera is linked to and when they last fired. If the activity feed stays empty, look there first.
 
 The YAML it writes looks like this:
 
