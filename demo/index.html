@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera Wall Demo</title>
+<style>
+  body { margin: 0; padding: 16px; background: #0b0c0e; color: #e6edf2; font-family: system-ui, sans-serif; }
+  main { max-width: 2400px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<main>
+  <camera-wall-card id="card"></camera-wall-card>
+</main>
+
+<script type="module">
+import "../camera-wall-card.js";
+
+const areas = { outside: "Outside", garage: "Garage", main: "Main Floor", upstairs: "Upstairs", barn: "Barn" };
+const cams = [
+  ["Front Door", "outside", "porch", true, null],
+  ["Back Door", "outside", "porch", true, 64],
+  ["Driveway", "outside", "outdoor", false, null],
+  ["Front Yard", "outside", "outdoor", false, 88],
+  ["Back Yard", "outside", "outdoor", false, 41],
+  ["Side Gate", "outside", "outdoor", false, 17],
+  ["Patio", "outside", "outdoor", false, 72],
+  ["Pool", "outside", "outdoor", false, 93],
+  ["Street", "outside", "outdoor", false, null],
+  ["Mailbox", "outside", "outdoor", false, 8],
+  ["Shed", "outside", "outdoor", false, 55],
+  ["Garden", "outside", "outdoor", false, 61],
+  ["Garage Inside", "garage", "indoor", false, null],
+  ["Garage Door", "garage", "outdoor", false, null],
+  ["Workshop", "garage", "indoor", false, null],
+  ["Living Room", "main", "indoor", false, null],
+  ["Kitchen", "main", "indoor", false, null],
+  ["Dining Room", "main", "indoor", false, null],
+  ["Entry Hall", "main", "indoor", false, null],
+  ["Office", "main", "indoor", false, null],
+  ["Basement Stairs", "main", "indoor", false, null],
+  ["Laundry", "main", "indoor", false, null],
+  ["Nursery", "upstairs", "indoor", false, null],
+  ["Upstairs Hall", "upstairs", "indoor", false, null],
+  ["Playroom", "upstairs", "indoor", false, null],
+  ["Guest Room", "upstairs", "indoor", false, null],
+  ["Barn Door", "barn", "outdoor", false, 35],
+  ["Barn Inside", "barn", "indoor", false, null],
+  ["Pasture", "barn", "outdoor", false, 22],
+  ["Back Gate", "barn", "outdoor", false, 12],
+];
+
+const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+const states = {};
+const entities = {};
+const devices = {};
+const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+const offline = new Set(["Shed", "Back Gate"]);
+cams.forEach(([name, area, pic, doorbell, battery], i) => {
+  const b = slug(name);
+  const dev = `dev_${b}`;
+  devices[dev] = { name, area_id: area };
+  const cam = `camera.${b}_live_view`;
+  states[cam] = { state: offline.has(name) ? "unavailable" : "idle", attributes: { friendly_name: `${name} Live view`, entity_picture: `${pic}.svg?cam=${b}` }, last_changed: ago(300) };
+  entities[cam] = { entity_id: cam, device_id: dev, platform: "ring", translation_key: "live_view" };
+  const rec = `camera.${b}_last_recording`;
+  states[rec] = { state: "idle", attributes: { friendly_name: `${name} Last recording`, entity_picture: `${pic}.svg?rec=${b}` } };
+  entities[rec] = { entity_id: rec, device_id: dev, platform: "ring", translation_key: "last_recording" };
+  const mo = `event.${b}_motion`;
+  states[mo] = { state: ago(5 + i * 37), attributes: { event_type: "motion", device_class: "motion" } };
+  entities[mo] = { entity_id: mo, device_id: dev, platform: "ring", translation_key: "motion" };
+  if (doorbell) {
+    const d = `event.${b}_ding`;
+    states[d] = { state: ago(140 + i * 50), attributes: { event_type: "ding", device_class: "doorbell" } };
+    entities[d] = { entity_id: d, device_id: dev, platform: "ring", translation_key: "ding" };
+  }
+  if (battery != null) {
+    const s = `sensor.${b}_battery`;
+    states[s] = { state: String(battery), attributes: { device_class: "battery", unit_of_measurement: "%" } };
+    entities[s] = { entity_id: s, device_id: dev, platform: "ring", translation_key: null };
+  }
+});
+states["event.driveway_motion"].state = ago(0.2);
+states["event.nursery_motion"].state = ago(0.5);
+states["event.front_door_motion"].state = ago(0.4);
+
+async function callApi(method, path) {
+  const ids = decodeURIComponent(path.split("filter_entity_id=")[1].split("&")[0]).split(",");
+  return ids.map((id, i) => {
+    const n = 2 + (i % 5);
+    const rows = [{ entity_id: id, state: ago(1500), last_changed: ago(1500) }];
+    for (let k = n; k > 0; k--) rows.push({ state: ago(k * (60 + i * 13)), last_changed: ago(k * (60 + i * 13)) });
+    return rows;
+  });
+}
+
+const card = document.getElementById("card");
+const areaReg = Object.fromEntries(Object.entries(areas).map(([id, name]) => [id, { area_id: id, name }]));
+const push = () => { card.hass = { states: { ...states }, entities, devices, areas: areaReg, callApi, hassUrl: (p) => p }; };
+
+const params = new URLSearchParams(location.search);
+card.setConfig({ title: "Cameras", refresh: 10, ...(params.has("cols") ? { columns: Number(params.get("cols")) } : {}) });
+push();
+
+window.addEventListener("hass-more-info", (e) => console.log("MORE-INFO:", e.detail.entityId));
+const names = cams.map(([n]) => slug(n));
+setInterval(() => {
+  const b = names[Math.floor(Math.random() * names.length)];
+  states[`event.${b}_motion`] = { ...states[`event.${b}_motion`], state: new Date().toISOString() };
+  push();
+}, 7000);
+if (params.has("ding")) setTimeout(() => {
+  states["event.front_door_ding"] = { ...states["event.front_door_ding"], state: new Date().toISOString() };
+  push();
+}, 1500);
+</script>
+</body>
+</html>

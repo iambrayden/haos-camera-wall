@@ -1,0 +1,9 @@
+title: Cameras
+views:
+  - title: Cameras
+    path: live
+    icon: mdi:cctv
+    panel: true
+    cards:
+      - type: custom:camera-wall-card
+        title: Cameras
