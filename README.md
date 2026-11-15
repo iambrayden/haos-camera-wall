@@ -55,13 +55,26 @@ With only this line the card picks up every camera from Ring and UniFi Protect, 
 type: custom:camera-wall-card
 ```
 
+### Arranging the wall
+
+Press the grid button in the top right (admins only). Every camera gets a number box and a ⤢ button:
+
+- Drag a camera onto another spot to move it (mouse or touch).
+- Type a number in a camera's box to send it straight to that spot, e.g. `1` to put it first.
+- ⤢ makes a camera big (twice the width and height).
+
+Each tab keeps its own order. **Save** writes it to the dashboard, **Cancel** puts it back.
+
+The list button next to it hides or shows the activity panel on that device, which gives the cameras more room.
+
 ### Tabs and cameras
 
 Press the gear in the top right of the card (admins only). It opens a panel where you can:
 
 - Rename the **main tab** and pick which cameras it shows.
 - Add a **property tab** for each property, name it, and pick its cameras.
-- Switch a tab to **Rename & order** to rename a camera with its ✎ button and move it with the arrows.
+- Pick how many **Columns** a tab uses, or leave it on Auto to fill the screen.
+- Switch a tab to **Rename & order** to rename a camera with its ✎ button, type a number to move it, or make it big.
 
 Changes show on the card as you make them. **Save** writes them to the dashboard so every device gets them. **Cancel** puts everything back. The same editor is also in the dashboard's own card editor.
 
@@ -105,7 +118,7 @@ exclude:
 | Option | Default | Description |
 | --- | --- | --- |
 | `title` | `Cameras` | Card heading |
-| `views` | | Tabs, each `{name, cameras}`. Cameras are entity IDs or `{entity, name, live}`. |
+| `views` | | Tabs, each `{name, cameras, columns}`. Cameras are entity IDs or `{entity, name, size, live}`; `size: 2` makes a big tile. |
 | `all_name` | `All` | Name of the main tab |
 | `all_tab` | `false` | With views, also show the main tab |
 | `edit_button` | `true` | Show the gear for admins |
@@ -119,7 +132,7 @@ exclude:
 | `groups` | `true` | Tabs from areas. `false` to turn off. |
 | `refresh` | `20` | Seconds to cycle through all snapshots. Requests are spread out, so 30 cameras at 20s is one request about every 0.7s. |
 | `fit` | `auto` | Fit every tile on screen. `auto` does this on screens 700px and wider. `true` always, `false` never. |
-| `columns` | | Fixed number of columns instead of fitting |
+| `columns` | | Fixed number of columns on the main tab instead of fitting. Each view has its own `columns`. |
 | `height` | | Height in px to fit into. Defaults to what's left of the browser window. |
 | `min_tile_width` | `150` | Below this the grid scrolls instead of shrinking further |
 | `aspect` | `16/9` | Tile shape |
