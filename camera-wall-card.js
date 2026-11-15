@@ -1,4 +1,4 @@
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 
 const ICON = {
   cctv: "M6.03 12.03L8.03 15.5L5.5 18.68L2 12.62L6.03 12.03M17 18V15.29C17.88 14.9 18.5 14.03 18.5 13C18.5 12.43 18.3 11.9 17.97 11.5L19.94 10.35C20.95 9.76 21.3 8.47 20.71 7.46L19.33 5.06C18.74 4.05 17.45 3.7 16.44 4.28L8.31 9C7.36 9.53 7.03 10.75 7.58 11.71L9.08 14.31C9.63 15.26 10.86 15.59 11.81 15.04L13.69 13.96C14 14.65 14.5 15.04 15 15.29V18C15 19.1 15.9 20 17 20H22V18H17Z",
@@ -1391,13 +1391,21 @@ button:disabled { opacity: 0.4; cursor: default; }
 .list label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list label small { color: var(--secondary-text-color); font-size: 11px; margin-left: auto; }
 .sub { margin: 10px 0 6px; font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.06em; }
-.chosen { display: flex; flex-direction: column; gap: 4px; }
-.cam-row { display: flex; align-items: center; gap: 6px; }
-.cam-row .num { width: 18px; text-align: right; font-size: 12px; color: var(--secondary-text-color); }
-.cam-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.cam-name small { font-size: 11px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cam-row button { padding: 6px 9px; }
-.cam-name small.links { white-space: normal; opacity: 0.85; }
+.chosen { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; max-height: 360px; overflow-y: auto; }
+.cam-row { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 2px; border-radius: 6px; }
+.cam-row:hover { background: rgba(127,127,127,0.08); }
+.cam-row .num { width: 20px; flex: none; text-align: right; font-size: 12px; color: var(--secondary-text-color); }
+.cam-name { flex: 1; min-width: 0; padding-left: 4px; }
+.cam-name input { padding: 5px 8px; }
+.cam-label { display: flex; align-items: baseline; gap: 8px; font-size: 14px; overflow: hidden; white-space: nowrap; }
+.cam-label small { font-size: 11px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; }
+button.icon { width: 30px; height: 30px; padding: 0; flex: none; font-size: 14px; border-color: transparent; }
+button.icon:hover:not(:disabled) { border-color: var(--divider-color, #444); }
+.links { margin: -2px 0 4px 30px; font-size: 11px; color: var(--secondary-text-color); }
+.seg { display: inline-flex; gap: 2px; padding: 3px; margin: 2px 0 10px; border-radius: 8px; background: rgba(127,127,127,0.12); }
+.seg button { border: 0; padding: 6px 12px; border-radius: 6px; color: var(--secondary-text-color); }
+.seg button.on { background: var(--primary-color); color: var(--text-primary-color, #fff); }
+.check.small { font-size: 12px; color: var(--secondary-text-color); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; cursor: pointer; }
 `;
 
@@ -1581,15 +1589,41 @@ class CameraWallCardEditor extends HTMLElement {
 
     const chosen = h("div", { class: "chosen" });
     const list = items();
-    if (!list.length) chosen.append(h("p", { class: "hint" }, isMain ? "Nothing picked, so this tab shows every camera. Tick cameras below to choose which ones it shows." : "No cameras picked yet, so this tab shows every camera. Tick some below."));
+    this._modes = this._modes || {};
+    this._showLinks = this._showLinks || {};
+    const mode = list.length ? this._modes[i] || "pick" : "pick";
     list.forEach((it, k) => {
       const cam = byId.get(it.entity);
-      const input = h("input", { type: "text", value: it.name || "", placeholder: cam?.name || it.entity });
-      input.addEventListener("change", () => {
-        const cur = items();
-        cur[k].name = input.value.trim() || undefined;
-        if (!cur[k].name) delete cur[k].name;
-        store(cur);
+      const fallback = cam?.name || it.entity;
+      const label = h("span", { class: "cam-label" }, it.name || fallback);
+      if (it.name) label.append(h("small", {}, fallback));
+      const rename = h("button", { type: "button", class: "icon", title: "Rename" }, "✎");
+      const nameCell = h("div", { class: "cam-name" }, label);
+      const rowEl = h("div", { class: "cam-row", title: `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}` });
+      rename.addEventListener("click", () => {
+        const input = h("input", { type: "text", value: it.name || "", placeholder: fallback });
+        let done = false;
+        const commit = (keep) => {
+          if (done) return;
+          done = true;
+          if (keep) {
+            const cur = items();
+            const v = input.value.trim();
+            if (v && v !== fallback) cur[k].name = v;
+            else delete cur[k].name;
+            store(cur);
+          }
+          rerender();
+        };
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") commit(true);
+          else if (e.key === "Escape") commit(false);
+        });
+        input.addEventListener("blur", () => commit(true));
+        nameCell.replaceChildren(input);
+        rename.style.visibility = "hidden";
+        input.focus();
+        input.select();
       });
       const shift = (d) => {
         const cur = items();
@@ -1597,37 +1631,30 @@ class CameraWallCardEditor extends HTMLElement {
         store(cur);
         rerender();
       };
-      const up = h("button", { type: "button", title: "Move up" }, "↑");
-      const down = h("button", { type: "button", title: "Move down" }, "↓");
+      const up = h("button", { type: "button", class: "icon", title: "Move up" }, "↑");
+      const down = h("button", { type: "button", class: "icon", title: "Move down" }, "↓");
       up.disabled = k === 0;
       down.disabled = k === list.length - 1;
       up.addEventListener("click", () => shift(-1));
       down.addEventListener("click", () => shift(1));
-      const del = h("button", { class: "danger", type: "button", title: "Remove from this tab" }, "✕");
+      const del = h("button", { class: "icon danger", type: "button", title: "Remove from this tab" }, "✕");
       del.addEventListener("click", () => {
         store(items().filter((_, x) => x !== k));
         rerender();
       });
-      chosen.append(
-        h(
-          "div",
-          { class: "cam-row" },
-          h("span", { class: "num" }, String(k + 1)),
-          h(
-            "div",
-            { class: "cam-name" },
-            input,
-            h("small", {}, `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}`),
-            h("small", { class: "links" }, this._links(cam)),
-          ),
-          up,
-          down,
-          del,
-        ),
-      );
+      rowEl.append(h("span", { class: "num" }, String(k + 1)), nameCell, rename, up, down, del);
+      chosen.append(rowEl);
+      if (this._showLinks[i]) chosen.append(h("div", { class: "links" }, this._links(cam)));
     });
+    const linksToggle = h("label", { class: "check small" });
+    const linksBox = h("input", { type: "checkbox" });
+    linksBox.checked = !!this._showLinks[i];
+    linksBox.addEventListener("change", () => {
+      this._showLinks[i] = linksBox.checked;
+      rerender();
+    });
+    linksToggle.append(linksBox, "Show linked motion and doorbell sensors");
 
-    const count = h("span", { class: "count" }, list.length ? `${list.length} picked` : "All cameras");
     const search = h("input", { type: "search", placeholder: "Search cameras", value: this._filters[i] || "" });
     const picker = h("div", { class: "list" });
     const picked = new Set(list.map((c) => c.entity));
@@ -1668,17 +1695,32 @@ class CameraWallCardEditor extends HTMLElement {
       rerender();
     });
 
+    const seg = h("div", { class: "seg" });
+    for (const [key, text] of [["pick", `Pick cameras${list.length ? ` (${list.length})` : ""}`], ["order", "Rename & order"]]) {
+      const b = h("button", { type: "button", class: key === mode ? "on" : "" }, text);
+      b.disabled = key === "order" && !list.length;
+      b.addEventListener("click", () => {
+        this._modes[i] = key;
+        rerender();
+      });
+      seg.append(b);
+    }
     return h(
       "div",
       { class: "view" },
       isMain
         ? h("div", { class: "view-head" }, h("label", { class: "field" }, "Main tab name", name), views.length ? this._check("all_tab", "Show this tab", false) : null)
         : h("div", { class: "view-head" }, h("label", { class: "field" }, "Tab name", name), left, right, remove),
-      h("div", { class: "sub" }, "Cameras on this tab"),
-      chosen,
-      h("div", { class: "sub" }, "Add cameras"),
-      h("div", { class: "tools" }, search, tickAll, clear, count),
-      picker,
+      seg,
+      mode === "pick"
+        ? h(
+            "div",
+            {},
+            list.length ? null : h("p", { class: "hint" }, isMain ? "Nothing picked, so this tab shows every camera." : "Nothing picked yet, so this tab shows every camera."),
+            h("div", { class: "tools" }, search, tickAll, clear),
+            picker,
+          )
+        : h("div", {}, chosen, linksToggle),
     );
   }
 }
