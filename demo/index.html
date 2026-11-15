@@ -15,6 +15,22 @@
 </main>
 
 <script type="module">
+customElements.define("ha-camera-stream", class extends HTMLElement {
+  set stateObj(st) { this._st = st; this._paint(); }
+  get stateObj() { return this._st; }
+  connectedCallback() {
+    this.style.cssText += ";background:#000";
+    this._img = document.createElement("img");
+    this._img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block";
+    this._clock = document.createElement("span");
+    this._clock.style.cssText = "position:absolute;right:6px;bottom:24px;font:10px monospace;color:#fff;background:rgba(0,0,0,.5);padding:1px 4px;border-radius:3px";
+    this.append(this._img, this._clock);
+    this._paint();
+    this._t = setInterval(() => (this._clock.textContent = new Date().toLocaleTimeString()), 1000);
+  }
+  disconnectedCallback() { clearInterval(this._t); }
+  _paint() { if (this._img && this._st) this._img.src = this._st.attributes.entity_picture; }
+});
 import "../camera-wall-card.js";
 
 const areas = { outside: "Outside", garage: "Garage", main: "Main Floor", upstairs: "Upstairs", barn: "Barn" };
@@ -81,9 +97,33 @@ cams.forEach(([name, area, pic, doorbell, battery], i) => {
     entities[s] = { entity_id: s, device_id: dev, platform: "ring", translation_key: null };
   }
 });
+states["camera.kitchen_live_view"].attributes.entity_picture = "missing.jpg";
+states["camera.office_live_view"].attributes.entity_picture = "missing.jpg";
 states["event.driveway_motion"].state = ago(0.2);
 states["event.nursery_motion"].state = ago(0.5);
 states["event.front_door_motion"].state = ago(0.4);
+
+const unifi = [["Lake Dock", "outdoor"], ["Lake Driveway", "outdoor"], ["Lake Kitchen", "indoor"], ["Lake Doorbell", "porch"]];
+unifi.forEach(([name, pic]) => {
+  const b = slug(name);
+  const dev = `dev_${b}`;
+  devices[dev] = { name, area_id: null };
+  for (const [suffix, tk] of [["high_resolution_channel", "high"], ["medium_resolution_channel", "medium"], ["package_camera", "package"]]) {
+    if (suffix === "package_camera" && name !== "Lake Doorbell") continue;
+    const id = `camera.${b}_${suffix}`;
+    states[id] = { state: "streaming", attributes: { friendly_name: `${name} ${suffix.replace(/_/g, " ")}`, entity_picture: `${pic}.svg?u=${b}` } };
+    entities[id] = { entity_id: id, device_id: dev, platform: "unifiprotect" };
+  }
+  for (const [suffix, dc, on] of [["motion", "motion", name === "Lake Dock"], ["person_detected", "occupancy", name === "Lake Dock"], ["vehicle_detected", "occupancy", false], ["animal_detected", "occupancy", false]]) {
+    const id = `binary_sensor.${b}_${suffix}`;
+    states[id] = { state: on ? "on" : "off", attributes: { device_class: dc }, last_changed: ago(20) };
+    entities[id] = { entity_id: id, device_id: dev, platform: "unifiprotect" };
+  }
+  if (name === "Lake Doorbell") {
+    states["binary_sensor.lake_doorbell_doorbell"] = { state: "off", attributes: { device_class: "occupancy" }, last_changed: ago(90) };
+    entities["binary_sensor.lake_doorbell_doorbell"] = { entity_id: "binary_sensor.lake_doorbell_doorbell", device_id: dev, platform: "unifiprotect" };
+  }
+});
 
 async function callApi(method, path) {
   const ids = decodeURIComponent(path.split("filter_entity_id=")[1].split("&")[0]).split(",");
@@ -100,8 +140,32 @@ const areaReg = Object.fromEntries(Object.entries(areas).map(([id, name]) => [id
 const push = () => { card.hass = { states: { ...states }, entities, devices, areas: areaReg, callApi, hassUrl: (p) => p }; };
 
 const params = new URLSearchParams(location.search);
-card.setConfig({ title: "Cameras", refresh: 10, ...(params.has("cols") ? { columns: Number(params.get("cols")) } : {}) });
+const config = { title: "Cameras", refresh: 10, ...(params.has("cols") ? { columns: Number(params.get("cols")) } : {}) };
+if (params.has("props")) {
+  config.views = [
+    { name: "Main House", cameras: [{ entity: "camera.front_door_live_view", name: "Porch" }, "camera.driveway_live_view", "camera.living_room_live_view", "camera.kitchen_live_view", "camera.nursery_live_view", "camera.office_live_view"] },
+    { name: "Farm", cameras: ["camera.barn_door_live_view", "camera.barn_inside_live_view", "camera.pasture_live_view", "camera.back_gate_live_view"] },
+    { name: "Lake House", cameras: [{ entity: "camera.lake_dock_high_resolution_channel", name: "Boat Dock" }, "camera.lake_driveway_high_resolution_channel", "camera.lake_kitchen_high_resolution_channel", "camera.lake_doorbell_high_resolution_channel"] },
+    { name: "Rental", cameras: ["camera.street_live_view", "camera.mailbox_live_view", "camera.shed_live_view"] },
+  ];
+} else if (params.has("views")) {
+  config.views = [
+    { name: "Doors", cameras: ["camera.front_door_live_view", "camera.back_door_live_view", "camera.side_gate_live_view", "camera.garage_door_live_view", "camera.barn_door_live_view", "camera.back_gate_live_view"] },
+    { name: "Yard", cameras: ["camera.driveway_live_view", "camera.front_yard_live_view", "camera.back_yard_live_view", "camera.patio_live_view", "camera.pool_live_view", "camera.street_live_view", "camera.pasture_live_view", "camera.garden_live_view"] },
+    { name: "Inside", cameras: ["camera.living_room_live_view", "camera.kitchen_live_view", "camera.office_live_view", "camera.nursery_live_view"] },
+    { name: "Everything" },
+  ];
+}
+card.setConfig(config);
 push();
+if (params.has("editor")) {
+  const ed = document.createElement("camera-wall-card-editor");
+  ed.style.cssText = "display:block;max-width:640px;margin:16px auto;padding:16px;background:#1c1c1c;border-radius:12px;--primary-color:#3d8bff;--secondary-text-color:#9aa;--primary-text-color:#e6edf2;--divider-color:#3a3a3a";
+  document.querySelector("main").prepend(ed);
+  ed.hass = { states, entities, devices, areas: areaReg };
+  ed.setConfig(config);
+  ed.addEventListener("config-changed", (e) => { window.lastConfig = e.detail.config; card.setConfig(e.detail.config); push(); ed.setConfig(e.detail.config); });
+}
 
 window.addEventListener("hass-more-info", (e) => console.log("MORE-INFO:", e.detail.entityId));
 const names = cams.map(([n]) => slug(n));
