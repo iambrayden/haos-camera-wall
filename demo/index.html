@@ -178,7 +178,8 @@ if (params.has("editor")) {
   document.querySelector("main").prepend(ed);
   ed.hass = { states, entities, devices, areas: areaReg };
   ed.setConfig(config);
-  ed.addEventListener("config-changed", (e) => { window.lastConfig = e.detail.config; card.setConfig(e.detail.config); push(); ed.setConfig(e.detail.config); });
+  const deepFreeze = (o) => { if (o && typeof o === "object" && !Object.isFrozen(o)) { Object.freeze(o); Object.values(o).forEach(deepFreeze); } return o; };
+  ed.addEventListener("config-changed", (e) => { const c = deepFreeze(e.detail.config); window.lastConfig = c; card.setConfig(c); push(); setTimeout(() => ed.setConfig(c), 30); });
 }
 
 window.addEventListener("hass-more-info", (e) => console.log("MORE-INFO:", e.detail.entityId));
