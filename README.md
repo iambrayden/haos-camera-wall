@@ -1,11 +1,13 @@
 # Camera Wall Card
 
-Every Ring camera on one screen, in the same style as the [Home View Card](https://github.com/iambrayden/haos-home-view).
+Every Ring and UniFi Protect camera on one screen, in the same style as the [Home View Card](https://github.com/iambrayden/haos-home-view).
 
-- Finds all your Ring cameras by itself. No list to keep up to date.
+- Finds all your Ring and UniFi Protect cameras by itself, one tile per camera.
+- Live video in every tile. Only the tiles on screen in the open tab stream.
+- Views: one tab per property (or however you like to group them), each with its own cameras, order and names. Set them up in the visual editor.
 - Fits every camera on screen without scrolling (30 cameras fit on a 1080p wall display). Phones get a scrolling two-column grid.
 - Tabs for each Home Assistant area, plus **Recent** (motion or a ding in the last 30 minutes) and **Battery** (lowest first).
-- Motion outlines the tile in red with a "Motion" tag. A doorbell press makes it pulse and opens that camera live for 60 seconds.
+- Motion outlines the tile in red with a "Motion" tag, or what UniFi Protect detected ("Person · Vehicle"). A doorbell press makes it pulse and opens that camera live for 60 seconds.
 - Battery level on every battery camera, amber at 20% and red at 10%.
 - Offline cameras show greyed out with a dashed border.
 - Tap a tile for the live stream. Use the arrows or the ← → keys to step through cameras, and Esc to go back. Long-press opens the normal Home Assistant dialog.
@@ -47,47 +49,56 @@ tap_action:
 
 ## Setup
 
-With only this line the card picks up every `camera.*_live_view` from the Ring integration, along with each camera's motion and ding events and its battery sensor:
+With only this line the card picks up every camera from Ring and UniFi Protect, with each one's motion, doorbell, detection and battery sensors:
 
 ```yaml
 type: custom:camera-wall-card
 ```
 
-Tabs come from the area each Ring device is assigned to (Settings → Devices → the camera → pencil icon → Area). Cameras without an area only show under **All**.
+### Views
 
-To leave some out:
+Edit the card in the dashboard editor. Under **Views**, add one per property, give it a name, tick its cameras, type your own name for any camera and use the arrows to order them. The YAML it writes looks like this:
 
 ```yaml
 type: custom:camera-wall-card
+views:
+  - name: Main House
+    cameras:
+      - entity: camera.front_door_live_view
+        name: Porch
+      - camera.driveway_live_view
+  - name: Lake House
+    cameras:
+      - entity: camera.dock_high_resolution_channel
+        name: Boat Dock
+      - camera.lake_driveway_high_resolution_channel
+```
+
+A view with no cameras shows all of them. The card remembers the last tab you had open on each device. The activity feed follows the tab.
+
+Without views, tabs come from the area each device is assigned to.
+
+To leave cameras out of discovery:
+
+```yaml
 exclude:
   - camera.test_cam_live_view
 ```
-
-To pick the cameras and their order yourself:
-
-```yaml
-type: custom:camera-wall-card
-cameras:
-  - camera.front_door_live_view
-  - entity: camera.driveway_live_view
-    name: Drive
-    group: Outside
-  - entity: camera.nursery_live_view
-    motion: binary_sensor.nursery_motion
-```
-
-When `cameras:` is set, only those show. Add `discover: true` to put the rest after them.
 
 ## Options
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `title` | `Cameras` | Card heading |
-| `cameras` | | List of camera entities or `{entity, name, group, motion, ding, battery, snapshot}` |
+| `views` | | Tabs, each `{name, cameras}`. Cameras are entity IDs or `{entity, name, live}`. |
+| `all_tab` | `false` | With views, also show an All tab |
+| `live` | `true` | Live video in the tiles. `false` shows snapshots that refresh in rotation. |
+| `cameras` | | Without views: list of camera entities or `{entity, name, group, motion, ding, detections, battery, snapshot, live}` |
 | `exclude` | | Cameras to skip |
-| `platform` | `ring` | Integration to discover from. Set `false` to turn discovery off. |
+| `platform` | `[ring, unifiprotect]` | Integrations to discover from. Set `false` to turn discovery off. |
 | `discover` | `false` | With `cameras:` set, also add every discovered camera after them |
-| `include_last_recording` | `false` | Also show the `_last_recording` cameras |
+| `include_last_recording` | `false` | Also show Ring's `_last_recording` cameras |
+| `snapshot_timeout` | `12` | Seconds to wait for a snapshot before falling back to the last recording |
 | `groups` | `true` | Tabs from areas. `false` to turn off. |
 | `refresh` | `20` | Seconds to cycle through all snapshots. Requests are spread out, so 30 cameras at 20s is one request about every 0.7s. |
 | `fit` | `auto` | Fit every tile on screen. `auto` does this on screens 700px and wider. `true` always, `false` never. |
@@ -106,11 +117,13 @@ When `cameras:` is set, only those show. Add `discover: true` to put the rest af
 | `log_hours` | `24` | How far back to load history |
 | `log_max` | `80` | Most entries to keep |
 
-## Ring and live video
+## Live video
 
-Ring only streams on demand, and battery cameras drain fast while streaming, so the wall shows snapshots that refresh in rotation. Only the camera you open streams live. How fresh a snapshot is depends on Ring: wired cameras update often, battery cameras less often, and some only after motion.
+Each tile streams through Home Assistant the same way a picture card does. UniFi Protect streams locally, so many at once are fine. Ring streams come from Ring's cloud on demand: battery cameras drain faster while streaming and Ring may refuse some streams if too many open at once. Splitting cameras into views keeps the count down, since only the open tab streams. Streams also stop while a camera is open full size or the browser tab is in the background.
 
-The snapshots pause while a camera is open full size or the tab is in the background.
+To turn streaming off for one camera, use `{entity: ..., live: false}`. To turn it off everywhere, set `live: false`.
+
+When a tile isn't streaming it shows a snapshot. If Ring's live snapshot doesn't arrive within 12 seconds the tile shows the last recording instead.
 
 ## Theming
 
@@ -123,7 +136,7 @@ Same variables as the Home View Card:
 
 ## Demo
 
-`demo/index.html` runs the card with 30 fake Ring cameras. Motion fires every few seconds. Add `?ding` to the URL to see a doorbell press.
+`demo/index.html` runs the card with 30 fake Ring cameras and 4 UniFi Protect cameras. Motion fires every few seconds. Add `?props` for four property views, `?editor` for the editor, or `?ding` to see a doorbell press.
 
 ```bash
 python3 -m http.server 8000

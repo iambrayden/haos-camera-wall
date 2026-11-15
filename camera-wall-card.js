@@ -1,4 +1,4 @@
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const ICON = {
   cctv: "M6.03 12.03L8.03 15.5L5.5 18.68L2 12.62L6.03 12.03M17 18V15.29C17.88 14.9 18.5 14.03 18.5 13C18.5 12.43 18.3 11.9 17.97 11.5L19.94 10.35C20.95 9.76 21.3 8.47 20.71 7.46L19.33 5.06C18.74 4.05 17.45 3.7 16.44 4.28L8.31 9C7.36 9.53 7.03 10.75 7.58 11.71L9.08 14.31C9.63 15.26 10.86 15.59 11.81 15.04L13.69 13.96C14 14.65 14.5 15.04 15 15.29V18C15 19.1 15.9 20 17 20H22V18H17Z",
@@ -13,6 +13,8 @@ const ICON = {
   info: "M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
   grid: "M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
 };
+
+const PLATFORM_NAMES = { ring: "Ring", unifiprotect: "UniFi" };
 
 const DEAD_STATES = new Set(["unavailable", "unknown"]);
 
@@ -121,8 +123,8 @@ ha-card {
   aspect-ratio: var(--cw-aspect, 16 / 9); min-width: 0; -webkit-tap-highlight-color: transparent;
 }
 .tile:focus-visible { outline: 2px solid var(--hv-accent); outline-offset: 2px; }
-.tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; }
-.tile img.ready { opacity: 1; }
+.tile > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; }
+.tile > img.ready { opacity: 1; }
 .tile .shade { position: absolute; inset: auto 0 0 0; height: 46%; background: linear-gradient(transparent, rgba(0,0,0,0.75)); pointer-events: none; }
 .tile .cap {
   position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: baseline; gap: 6px;
@@ -132,9 +134,12 @@ ha-card {
 .tile .ago { flex: none; color: rgba(255,255,255,0.7); font-size: 10px; }
 .tile .tags { position: absolute; top: 5px; left: 5px; right: 5px; display: flex; align-items: center; gap: 4px; pointer-events: none; }
 .tile .live {
-  display: flex; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 4px;
+  display: none; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 4px;
   background: rgba(0,0,0,0.6); font-size: 10px; letter-spacing: 0.04em;
 }
+.tile.streaming .live { display: flex; }
+.tile .stream { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; overflow: hidden; }
+.tile.streaming .empty { display: none; }
 .tile .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--hv-closed); }
 .tile .badge {
   display: none; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px;
@@ -154,13 +159,13 @@ ha-card {
   color: var(--hv-muted); font-size: 11px; pointer-events: none;
 }
 .tile .empty svg { width: 26px; height: 26px; opacity: 0.6; }
-.tile img.ready ~ .empty { display: none; }
+.tile > img.ready ~ .empty { display: none; }
 .tile.motion { border-color: var(--hv-open); box-shadow: 0 0 0 1px var(--hv-open), 0 0 18px rgba(255,90,95,0.4); }
 .tile.motion .badge.m, .tile.ding .badge.d { display: flex; }
-.tile.motion .live, .tile.ding .live { display: none; }
+.tile.motion .live, .tile.ding .live { display: none !important; }
 .tile.ding { border-color: var(--hv-open); animation: ring 1s ease-in-out infinite; }
 .tile.dead { border-style: dashed; cursor: default; }
-.tile.dead img { filter: grayscale(1) brightness(0.5); }
+.tile.dead > img { filter: grayscale(1) brightness(0.5); }
 .tile.dead .live { display: none; }
 .tile.dead .empty { display: grid !important; z-index: 1; color: var(--hv-text); }
 .tile.missing { border-style: dashed; opacity: 0.5; }
@@ -215,6 +220,138 @@ ha-card {
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 `;
 
+const DETECT_LABELS = {
+  person: "Person",
+  vehicle: "Vehicle",
+  animal: "Animal",
+  package: "Package",
+  face: "Face",
+  license_plate: "Plate",
+  baby_cry: "Baby crying",
+  smoke: "Smoke alarm",
+  cmonx: "CO alarm",
+  glass_break: "Glass break",
+  bark: "Barking",
+  car_horn: "Car horn",
+  siren: "Siren",
+  speaking: "Speaking",
+};
+
+function detectLabel(id, hass) {
+  const m = id.match(/^binary_sensor\..*?_(person|vehicle|animal|package|face|license_plate|baby_cry|smoke|cmonx|glass_break|bark|car_horn|siren|speaking)_detected(_\d+)?$/);
+  if (m) return DETECT_LABELS[m[1]];
+  return (hass?.states[id]?.attributes.friendly_name || id).replace(/ detected$/i, "");
+}
+
+function viewList(cfg) {
+  if (!Array.isArray(cfg.views) || !cfg.views.length) return null;
+  return cfg.views.map((v, i) => {
+    const items = [].concat(v?.cameras || []).filter(Boolean);
+    return { name: v?.name || `View ${i + 1}`, items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)) };
+  });
+}
+
+function platformsOf(cfg) {
+  if (cfg.platform === false) return [];
+  return [].concat(cfg.platform || ["ring", "unifiprotect"]);
+}
+
+function cameraScore(id, r) {
+  const k = `${r?.translation_key || ""} ${id}`;
+  if (/insecure/.test(k)) return -10;
+  if (/last_recording/.test(k)) return -5;
+  if (/live_view|high_resolution/.test(k)) return 5;
+  if (/medium_resolution/.test(k)) return 3;
+  if (/low_resolution/.test(k)) return 2;
+  if (/package/.test(k)) return 0;
+  return 1;
+}
+
+function discoverCameras(hass, cfg, all = false) {
+  const reg = hass.entities || {};
+  const exclude = new Set([].concat(cfg.exclude || []));
+  const views = all ? null : viewList(cfg);
+  const listed = all ? [] : [...[].concat(cfg.cameras || []), ...(views ? views.flatMap((v) => v.items) : [])].map((c) => (typeof c === "string" ? { entity: c } : c));
+  const out = [];
+  const seen = new Set();
+  const add = (c) => {
+    if (!c.entity || seen.has(c.entity) || exclude.has(c.entity)) return;
+    seen.add(c.entity);
+    out.push(resolveCamera(hass, cfg, c));
+  };
+  for (const c of listed) add(c);
+  const platforms = platformsOf(cfg);
+  if (platforms.length && (all || !listed.length || cfg.discover === true || (views && views.some((v) => !v.items.length)))) {
+    const best = new Map();
+    for (const id of Object.keys(hass.states)) {
+      if (!id.startsWith("camera.")) continue;
+      const r = reg[id];
+      if (r?.hidden && !cfg.show_hidden) continue;
+      if (r?.platform ? !platforms.includes(r.platform) : !(platforms.includes("ring") && id.endsWith("_live_view"))) continue;
+      const score = cameraScore(id, r);
+      if (score <= -10 || (score < 0 && !cfg.include_last_recording)) continue;
+      const key = cfg.include_last_recording ? id : r?.device_id || id;
+      const prev = best.get(key);
+      if (!prev || score > prev.score) best.set(key, { id, score });
+    }
+    const items = [...best.values()].map((x) => resolveCamera(hass, cfg, { entity: x.id }));
+    items.sort((x, y) => (x.group || "~").localeCompare(y.group || "~") || x.name.localeCompare(y.name));
+    for (const c of items) add(c);
+  }
+  return out;
+}
+
+function resolveCamera(hass, cfg, c) {
+  const reg = hass.entities || {};
+  const r = reg[c.entity];
+  const dev = r?.device_id ? hass.devices?.[r.device_id] : null;
+  const raw = c.entity.replace(/^camera\./, "");
+  const m = raw.match(/^(.*?)_(live_view|last_recording|high_resolution_channel|medium_resolution_channel|low_resolution_channel|package_camera)(_\d+)?$/);
+  const base = m ? m[1] : raw;
+  const num = m?.[3] || "";
+  const siblings = r?.device_id ? Object.values(reg).filter((e) => e.device_id === r.device_id) : [];
+  const dc = (id) => hass.states[id]?.attributes.device_class;
+  const pick = (domain, keys, suffixes) => {
+    const byKey = siblings.find((e) => e.entity_id.startsWith(`${domain}.`) && (keys.includes(e.translation_key) || keys.includes(dc(e.entity_id))));
+    if (byKey) return byKey.entity_id;
+    for (const s of suffixes) {
+      for (const id of [`${domain}.${base}_${s}${num}`, `${domain}.${base}_${s}`]) if (hass.states[id]) return id;
+    }
+    return null;
+  };
+  const detections =
+    c.detections !== undefined
+      ? [].concat(c.detections || [])
+      : siblings.length
+        ? siblings.map((e) => e.entity_id).filter((id) => id.startsWith("binary_sensor.") && /_detected(_\d+)?$/.test(id))
+        : Object.keys(hass.states).filter((id) => id.startsWith(`binary_sensor.${base}_`) && /_detected(_\d+)?$/.test(id));
+  const battery =
+    c.battery !== undefined
+      ? c.battery
+      : siblings.find((e) => e.entity_id.startsWith("sensor.") && hass.states[e.entity_id]?.attributes.device_class === "battery")?.entity_id ||
+        pick("sensor", ["battery"], ["battery"]);
+  const areaId = r?.area_id || dev?.area_id;
+  const group = c.group || (cfg.groups !== false && areaId ? hass.areas?.[areaId]?.name : null) || null;
+  const fallbackName = hass.states[c.entity]?.attributes.friendly_name?.replace(/ (Live view|Last recording)$/i, "") || base.replace(/_/g, " ");
+  return {
+    ...c,
+    name: c.name || dev?.name_by_user || dev?.name || fallbackName,
+    group,
+    platform: r?.platform || null,
+    motion: [].concat(c.motion !== undefined ? c.motion || [] : [pick("event", ["motion"], ["motion"]) || pick("binary_sensor", ["motion"], ["motion"])]).filter(Boolean),
+    ding: [].concat(c.ding !== undefined ? c.ding || [] : [pick("event", ["ding", "doorbell"], ["ding", "doorbell"]) || pick("binary_sensor", ["ding", "doorbell"], ["ding", "doorbell"])]).filter(Boolean),
+    detections,
+    battery,
+    snapshot: c.snapshot || c.entity,
+    live: c.live,
+    fallback:
+      c.fallback !== undefined
+        ? c.fallback
+        : (siblings.find((e) => e.entity_id.startsWith("camera.") && e.entity_id !== c.entity && (e.translation_key === "last_recording" || /_last_recording(_\d+)?$/.test(e.entity_id)))?.entity_id ||
+            (hass.states[`camera.${base}_last_recording`] && `camera.${base}_last_recording` !== c.entity ? `camera.${base}_last_recording` : null)),
+  };
+}
+
 class CameraWallCard extends HTMLElement {
   constructor() {
     super();
@@ -228,26 +365,39 @@ class CameraWallCard extends HTMLElement {
     return { title: "Cameras" };
   }
 
+  static getConfigElement() {
+    return document.createElement("camera-wall-card-editor");
+  }
+
   setConfig(config) {
     if (!config) throw new Error("Invalid configuration");
-    this._config = { title: "Cameras", platform: "ring", refresh: 20, motion_seconds: 90, ...config };
+    this._config = { title: "Cameras", refresh: 20, motion_seconds: 90, ...config };
     this._events = [];
+    this._seenEvents = new Set();
     this._historyLoaded = false;
     this._built = false;
     this._sig = "";
-    if (this._hass) this._build();
+    this._cams = null;
+    this._stamp = null;
+    if (this._hass) this.hass = this._hass;
   }
 
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
     if (!this._config) return;
-    const cams = this._discover();
-    const sig = cams.map((c) => c.entity).join("|");
-    if (!this._built || sig !== this._sig) {
-      this._cams = cams;
-      this._sig = sig;
-      this._build();
+    const stamp = `${Object.keys(hass.states).length}`;
+    if (!this._built || hass.entities !== this._regRef || hass.areas !== this._areaRef || stamp !== this._stamp) {
+      this._regRef = hass.entities;
+      this._areaRef = hass.areas;
+      this._stamp = stamp;
+      const cams = this._discover();
+      const sig = JSON.stringify(cams.map((c) => [c.entity, c.name, c.group]));
+      if (!this._built || sig !== this._sig) {
+        this._cams = cams;
+        this._sig = sig;
+        this._build();
+      }
     }
     this._update(first);
     if (this._live) this._live.hass = hass;
@@ -280,6 +430,7 @@ class CameraWallCard extends HTMLElement {
     addEventListener("keydown", this._onKey);
     this._onVis = () => {
       if (!document.hidden) this._refreshAll();
+      this._syncLive();
     };
     document.addEventListener("visibilitychange", this._onVis);
     this._schedule();
@@ -299,73 +450,7 @@ class CameraWallCard extends HTMLElement {
   }
 
   _discover() {
-    const cfg = this._config;
-    const hass = this._hass;
-    const reg = hass.entities || {};
-    const exclude = new Set([].concat(cfg.exclude || []));
-    const listed = [].concat(cfg.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : c));
-    const out = [];
-    const seen = new Set();
-    const add = (c) => {
-      if (!c.entity || seen.has(c.entity) || exclude.has(c.entity)) return;
-      seen.add(c.entity);
-      out.push(this._resolve(c));
-    };
-    for (const c of listed) add(c);
-    if (cfg.platform && (!listed.length || cfg.discover === true)) {
-      const found = Object.keys(hass.states).filter((id) => {
-        if (!id.startsWith("camera.")) return false;
-        const r = reg[id];
-        if (r) {
-          if (r.hidden && !cfg.show_hidden) return false;
-          if (r.platform && r.platform !== cfg.platform) return false;
-          const key = r.translation_key || "";
-          if (key === "last_recording" || id.endsWith("_last_recording")) return !!cfg.include_last_recording;
-          return true;
-        }
-        if (id.endsWith("_last_recording")) return !!cfg.include_last_recording;
-        return cfg.platform !== "ring" || id.endsWith("_live_view");
-      });
-      const items = found.map((id) => this._resolve({ entity: id }));
-      items.sort((a, b) => (a.group || "~").localeCompare(b.group || "~") || a.name.localeCompare(b.name));
-      for (const c of items) add(c);
-    }
-    return out;
-  }
-
-  _resolve(c) {
-    const hass = this._hass;
-    const reg = hass.entities || {};
-    const r = reg[c.entity];
-    const dev = r?.device_id ? hass.devices?.[r.device_id] : null;
-    const base = c.entity.replace(/^camera\./, "").replace(/_(live_view|last_recording)$/, "");
-    const siblings = r?.device_id ? Object.values(reg).filter((e) => e.device_id === r.device_id) : [];
-    const pick = (domain, key, suffixes) => {
-      const byKey = siblings.find((e) => e.entity_id.startsWith(`${domain}.`) && e.translation_key === key);
-      if (byKey) return byKey.entity_id;
-      for (const s of suffixes) {
-        const id = `${domain}.${base}_${s}`;
-        if (hass.states[id]) return id;
-      }
-      return null;
-    };
-    const battery =
-      c.battery !== undefined
-        ? c.battery
-        : siblings.find((e) => e.entity_id.startsWith("sensor.") && hass.states[e.entity_id]?.attributes.device_class === "battery")?.entity_id ||
-          pick("sensor", "battery", ["battery"]);
-    const areaId = r?.area_id || dev?.area_id;
-    const group = c.group || (this._config.groups !== false && areaId ? hass.areas?.[areaId]?.name : null) || null;
-    const fallbackName = hass.states[c.entity]?.attributes.friendly_name?.replace(/ (Live view|Last recording)$/i, "") || base.replace(/_/g, " ");
-    return {
-      ...c,
-      name: c.name || dev?.name_by_user || dev?.name || fallbackName,
-      group,
-      motion: [].concat(c.motion !== undefined ? c.motion || [] : [pick("event", "motion", ["motion"]) || pick("binary_sensor", "motion", ["motion"])]).filter(Boolean),
-      ding: [].concat(c.ding !== undefined ? c.ding || [] : [pick("event", "ding", ["ding"]) || pick("binary_sensor", "ding", ["ding"])]).filter(Boolean),
-      battery,
-      snapshot: c.snapshot || c.entity,
-    };
+    return discoverCameras(this._hass, this._config);
   }
 
   _build() {
@@ -376,6 +461,7 @@ class CameraWallCard extends HTMLElement {
       this._sig = this._cams.map((c) => c.entity).join("|");
     }
     this._built = true;
+    this._orderKey = null;
     this._dropLive();
     this._focusId = null;
 
@@ -404,6 +490,7 @@ class CameraWallCard extends HTMLElement {
         t.visible = en.isIntersecting;
         if (t.visible && !t.loaded) this._snap(t);
       }
+      this._syncLive();
     });
 
     this._tiles = this._cams.map((cam) => this._buildTile(cam));
@@ -412,13 +499,13 @@ class CameraWallCard extends HTMLElement {
       this._io.observe(t.el);
     }
     if (!this._tiles.length) {
-      this._grid.append(h("div", { class: "log" }, h("div", { class: "empty" }, `No ${cfg.platform || ""} cameras found. Add them under cameras:.`)));
+      this._grid.append(h("div", { class: "log" }, h("div", { class: "empty" }, "No cameras found. Open the card editor to pick some.")));
     }
     main.append(this._grid, this._buildFocus());
     body.append(main);
 
     this._logList = null;
-    if (cfg.log !== false && this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length)) {
+    if (cfg.log !== false && this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length || t.cam.detections.length)) {
       this._logList = h("ul");
       const log = h("div", { class: "log" }, h("h3", {}, cfg.log_title || "Activity"), this._logList);
       body.append(log);
@@ -437,7 +524,8 @@ class CameraWallCard extends HTMLElement {
   _buildTile(cam) {
     const img = h("img", { alt: "", decoding: "async", draggable: "false" });
     const live = h("span", { class: "live" }, "LIVE");
-    const motion = h("span", { class: "badge m" }, icon(ICON.motion), "Motion");
+    const motionTxt = h("span", {}, "Motion");
+    const motion = h("span", { class: "badge m" }, icon(ICON.motion), motionTxt);
     const ding = h("span", { class: "badge d" }, icon(ICON.bell), "Ding");
     const bat = h("span", { class: "bat" });
     const empty = h("span", { class: "empty" });
@@ -445,6 +533,7 @@ class CameraWallCard extends HTMLElement {
     const emptyTxt = h("span", {}, "Loading");
     empty.append(emptyTxt);
     const ago = h("span", { class: "ago" });
+    const nm = h("span", { class: "nm" }, cam.name);
     const el = h(
       "button",
       { class: "tile", type: "button", title: cam.name, "aria-label": cam.name },
@@ -452,9 +541,9 @@ class CameraWallCard extends HTMLElement {
       empty,
       h("span", { class: "shade" }),
       h("span", { class: "tags" }, live, motion, ding, bat),
-      h("span", { class: "cap" }, h("span", { class: "nm" }, cam.name), ago),
+      h("span", { class: "cap" }, nm, ago),
     );
-    const t = { cam, el, img, bat, ago, emptyTxt, visible: false, loaded: false, lastMotion: null, lastDing: null };
+    const t = { cam, el, img, bat, ago, nm, motionTxt, emptyTxt, label: cam.name, visible: false, loaded: false, lastMotion: null, lastDing: null, det: {} };
     img.addEventListener("load", () => {
       img.classList.add("ready");
       t.loaded = true;
@@ -505,7 +594,8 @@ class CameraWallCard extends HTMLElement {
   }
 
   _visibleTiles() {
-    return this._tiles.filter((t) => !t.el.classList.contains("hidden"));
+    const byEl = new Map(this._tiles.map((t) => [t.el, t]));
+    return [...this._grid.children].map((el) => byEl.get(el)).filter((t) => t && !t.el.classList.contains("hidden"));
   }
 
   _step(dir) {
@@ -523,7 +613,7 @@ class CameraWallCard extends HTMLElement {
     this._focusId = entity;
     this._focus.classList.add("open");
     this._main.classList.add("focused");
-    this._fName.textContent = t.cam.name;
+    this._fName.textContent = t.label;
     this._renderFocusMeta();
     const list = this._visibleTiles();
     const idx = list.indexOf(t);
@@ -534,6 +624,7 @@ class CameraWallCard extends HTMLElement {
     this._fitFocus();
 
     this._dropLive();
+    this._syncLive();
     const token = (this._liveToken = {});
     let el = null;
     if (window.loadCardHelpers) {
@@ -556,7 +647,7 @@ class CameraWallCard extends HTMLElement {
       }
     }
     if (!el) {
-      el = h("img", { alt: t.cam.name });
+      el = h("img", { alt: t.label });
       el.src = this._picUrl(t.cam.snapshot) || "";
       this._fallbackTick = setInterval(() => {
         const u = this._picUrl(t.cam.snapshot);
@@ -573,6 +664,7 @@ class CameraWallCard extends HTMLElement {
     this._focus.classList.remove("open");
     this._main.classList.remove("focused");
     this._dropLive();
+    this._syncLive();
     this._refreshAll();
   }
 
@@ -622,12 +714,30 @@ class CameraWallCard extends HTMLElement {
     return [...counts.entries()];
   }
 
+  _tabKey() {
+    return `camera-wall-card:tab:${location.pathname}:${this._config.title || ""}`;
+  }
+
   _renderTabs() {
-    const tabs = [["all", "All", this._tiles.length]];
-    for (const [g, n] of this._groups()) tabs.push([`g:${g}`, g, n]);
+    const views = viewList(this._config);
+    const tabs = [];
+    if (views) {
+      if (this._config.all_tab) tabs.push(["all", "All", this._tiles.length]);
+      views.forEach((v, i) => tabs.push([`v:${i}`, v.name, v.ids.length ? this._tiles.filter((t) => v.ids.includes(t.cam.entity)).length : this._tiles.length]));
+    } else {
+      tabs.push(["all", "All", this._tiles.length]);
+      for (const [g, n] of this._groups()) tabs.push([`g:${g}`, g, n]);
+    }
     if (this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length)) tabs.push(["active", "Recent", null]);
     if (this._tiles.some((t) => t.cam.battery)) tabs.push(["battery", "Battery", null]);
-    if (!tabs.some(([k]) => k === this._tab)) this._tab = "all";
+    if (!this._tabRestored) {
+      this._tabRestored = true;
+      try {
+        const saved = localStorage.getItem(this._tabKey());
+        if (saved) this._tab = saved;
+      } catch (err) {}
+    }
+    if (!tabs.some(([k]) => k === this._tab)) this._tab = tabs[0][0];
     if (tabs.length < 2) {
       this._tabsEl.style.display = "none";
       return;
@@ -639,8 +749,12 @@ class CameraWallCard extends HTMLElement {
         if (n != null) b.append(h("span", { class: "n" }, String(n)));
         b.addEventListener("click", () => {
           this._tab = key;
+          try {
+            localStorage.setItem(this._tabKey(), key);
+          } catch (err) {}
           for (const x of this._tabsEl.children) x.classList.toggle("on", x.dataset.k === key);
           this._applyTab();
+          this._renderLog();
           this._layout();
         });
         return b;
@@ -651,20 +765,96 @@ class CameraWallCard extends HTMLElement {
   _applyTab() {
     const tab = this._tab;
     const recent = (this._config.recent_minutes ?? 30) * 60000;
+    const view = tab.startsWith("v:") ? viewList(this._config)?.[Number(tab.slice(2))] : null;
+    const names = new Map();
+    for (const v of viewList(this._config) || []) for (const it of v.items) if (it?.entity && it.name && !names.has(it.entity)) names.set(it.entity, it.name);
+    if (view) for (const it of view.items) if (it?.entity && it.name) names.set(it.entity, it.name);
     for (const t of this._tiles) {
       let show = true;
-      if (tab.startsWith("g:")) show = t.cam.group === tab.slice(2);
+      if (view) show = !view.ids.length || view.ids.includes(t.cam.entity);
+      else if (tab.startsWith("g:")) show = t.cam.group === tab.slice(2);
       else if (tab === "active") show = [t.lastMotion, t.lastDing].some((x) => x && Date.now() - x < recent);
       else if (tab === "battery") show = this._battery(t.cam) != null;
       t.el.classList.toggle("hidden", !show);
+      const label = names.get(t.cam.entity) || t.cam.name;
+      if (label !== t.label) {
+        t.label = label;
+        t.nm.textContent = label;
+        t.el.title = label;
+        t.el.setAttribute("aria-label", label);
+      }
     }
-    if (tab === "battery") {
-      const sorted = [...this._tiles].sort((a, b) => (this._battery(a.cam) ?? 999) - (this._battery(b.cam) ?? 999));
-      this._grid.append(...sorted.map((t) => t.el));
-    } else if (this._sortedByBattery) {
-      this._grid.append(...this._tiles.map((t) => t.el));
+    let order = this._tiles;
+    if (tab === "battery") order = [...this._tiles].sort((a, b) => (this._battery(a.cam) ?? 999) - (this._battery(b.cam) ?? 999));
+    else if (view?.ids.length) {
+      const rank = new Map(view.ids.map((id, i) => [id, i]));
+      order = [...this._tiles].sort((a, b) => (rank.get(a.cam.entity) ?? 1e6) - (rank.get(b.cam.entity) ?? 1e6));
     }
-    this._sortedByBattery = tab === "battery";
+    const key = tab === "battery" ? `battery:${Date.now() >> 16}` : view ? tab : "default";
+    if (key !== this._orderKey) {
+      this._orderKey = key;
+      this._grid.append(...order.map((t) => t.el));
+    }
+    this._syncLive();
+  }
+
+  _liveWanted(t) {
+    if (this._config.live === false || t.cam.live === false) return false;
+    if (this._focusId || document.hidden || !t.visible || t.el.classList.contains("hidden")) return false;
+    const st = this._hass?.states[t.cam.entity];
+    return !!st && !DEAD_STATES.has(st.state);
+  }
+
+  async _streamReady() {
+    if (customElements.get("ha-camera-stream")) return true;
+    if (!this._streamLoad) {
+      this._streamLoad = (async () => {
+        if (!window.loadCardHelpers || !this._tiles?.length) return false;
+        try {
+          const helpers = await window.loadCardHelpers();
+          helpers.createCardElement({ type: "picture-entity", entity: this._tiles[0].cam.entity, camera_view: "live" });
+          await Promise.race([customElements.whenDefined("ha-camera-stream"), new Promise((r) => setTimeout(r, 10000))]);
+        } catch (err) {
+          console.warn("camera-wall-card: live streams unavailable, showing snapshots", err);
+        }
+        return !!customElements.get("ha-camera-stream");
+      })();
+    }
+    return this._streamLoad;
+  }
+
+  async _syncLive() {
+    if (!this._tiles || this._config.live === false) return;
+    if (!(await this._streamReady())) return;
+    for (const t of this._tiles) {
+      const want = this._liveWanted(t);
+      if (want && !t.stream) {
+        const v = document.createElement("ha-camera-stream");
+        v.className = "stream";
+        v.hass = this._hass;
+        v.stateObj = this._hass.states[t.cam.entity];
+        v.muted = true;
+        v.controls = false;
+        v.fitMode = "cover";
+        v.setAttribute("muted", "");
+        t.streamState = v.stateObj;
+        t.stream = v;
+        t.el.insertBefore(v, t.img.nextSibling);
+        t.el.classList.add("streaming");
+      } else if (!want && t.stream) {
+        t.stream.remove();
+        t.stream = null;
+        t.streamState = null;
+        t.el.classList.remove("streaming");
+      } else if (t.stream) {
+        const st = this._hass.states[t.cam.entity];
+        if (st !== t.streamState) {
+          t.streamState = st;
+          t.stream.hass = this._hass;
+          t.stream.stateObj = st;
+        }
+      }
+    }
   }
 
   _layout() {
@@ -731,7 +921,7 @@ class CameraWallCard extends HTMLElement {
       const n = this._tiles.length;
       for (let i = 0; i < n; i++) {
         const t = this._tiles[(this._cursor + i) % n];
-        if (t.visible && !t.el.classList.contains("hidden")) {
+        if (t.visible && !t.stream && !t.el.classList.contains("hidden")) {
           this._cursor = (this._cursor + i + 1) % n;
           this._snap(t);
           return;
@@ -747,24 +937,37 @@ class CameraWallCard extends HTMLElement {
     return `${url}${url.includes("?") ? "&" : "?"}_t=${Date.now()}`;
   }
 
-  _snap(t) {
-    const st = this._hass?.states[t.cam.snapshot];
-    if (!st || DEAD_STATES.has(st.state) || t.pending) return;
-    const url = this._picUrl(t.cam.snapshot);
-    if (!url) return;
-    t.pending = true;
+  _snap(t, useFallback = false) {
+    const src = useFallback ? t.cam.fallback : t.cam.snapshot;
+    if (!src || t.pending) return;
+    const tryFallback = () => {
+      if (!useFallback && t.cam.fallback && !t.loaded) this._snap(t, true);
+      else if (!t.loaded) t.emptyTxt.textContent = "No image";
+    };
+    const st = this._hass?.states[src];
+    if (!st || DEAD_STATES.has(st.state)) return tryFallback();
+    const url = this._picUrl(src);
+    if (!url) return tryFallback();
     const pre = new Image();
     pre.decoding = "async";
-    const done = () => {
-      t.pending = false;
+    t.pending = pre;
+    const finish = () => {
+      if (t.pending !== pre) return false;
+      clearTimeout(timer);
+      t.pending = null;
+      return true;
     };
+    const timer = setTimeout(() => {
+      if (!finish()) return;
+      pre.onload = pre.onerror = null;
+      pre.src = "";
+      tryFallback();
+    }, (this._config.snapshot_timeout ?? 12) * 1000);
     pre.onload = () => {
-      done();
-      t.img.src = pre.src;
+      if (finish()) t.img.src = pre.src;
     };
     pre.onerror = () => {
-      done();
-      if (!t.loaded) t.emptyTxt.textContent = "No image";
+      if (finish()) tryFallback();
     };
     pre.src = url;
   }
@@ -835,7 +1038,15 @@ class CameraWallCard extends HTMLElement {
       t.lastMotion = m;
       t.lastDing = d;
 
-      const mOn = this._active(m);
+      const hits = [];
+      for (const id of t.cam.detections) {
+        const on = hass.states[id]?.state === "on";
+        if (on) hits.push(detectLabel(id, hass));
+        if (on && t.det[id] === false && !first) this._push({ ts: Date.now(), kind: "motion", label: detectLabel(id, hass), cam: t.cam });
+        t.det[id] = on;
+      }
+      t.motionTxt.textContent = hits.length ? [...new Set(hits)].join(" · ") : "Motion";
+      const mOn = this._active(m) || hits.length > 0;
       const dOn = this._active(d);
       if (mOn) motionNow++;
       if (dOn) dingNow++;
@@ -875,10 +1086,11 @@ class CameraWallCard extends HTMLElement {
     if (this._tab === "active") this._applyTab();
     if (this._focusId) this._renderFocusMeta();
     if (this._logList) this._renderLog();
+    this._syncLive();
   }
 
   _push(e) {
-    const key = `${e.cam.entity}|${e.kind}|${e.ts}`;
+    const key = `${e.cam.entity}|${e.kind}|${e.label || ""}|${Math.round(e.ts / 1000)}`;
     this._seenEvents = this._seenEvents || new Set();
     if (this._seenEvents.has(key)) return;
     this._seenEvents.add(key);
@@ -896,6 +1108,7 @@ class CameraWallCard extends HTMLElement {
     for (const t of this._tiles) {
       for (const id of t.cam.motion) byId.set(id, { cam: t.cam, kind: "motion" });
       for (const id of t.cam.ding) byId.set(id, { cam: t.cam, kind: "ding" });
+      for (const id of t.cam.detections) byId.set(id, { cam: t.cam, kind: "motion", label: detectLabel(id, this._hass) });
     }
     const ids = [...byId.keys()];
     if (!ids.length) return;
@@ -918,7 +1131,7 @@ class CameraWallCard extends HTMLElement {
           if (id.startsWith("event.")) ts = parseTime(row.state);
           else if (row.state === "on" && prev !== "on") ts = parseTime(row.last_changed);
           prev = row.state;
-          if (ts && ts >= start.getTime()) this._push({ ts, kind: info.kind, cam: info.cam });
+          if (ts && ts >= start.getTime()) this._push({ ts, kind: info.kind, label: info.label, cam: info.cam });
         }
       }
     } catch (err) {
@@ -944,7 +1157,10 @@ class CameraWallCard extends HTMLElement {
     };
     const items = [];
     let lastDay = null;
+    const view = this._tab?.startsWith("v:") ? viewList(this._config)?.[Number(this._tab.slice(2))] : null;
+    const only = view?.ids.length ? new Set(view.ids) : null;
     for (const e of this._events) {
+      if (only && !only.has(e.cam.entity)) continue;
       const day = dayName(e.ts);
       if (day !== lastDay) {
         items.push(h("li", { class: "day" }, day));
@@ -956,7 +1172,7 @@ class CameraWallCard extends HTMLElement {
         "button",
         { class: `item ${e.kind}`, type: "button" },
         dot,
-        h("span", { class: "txt" }, e.kind === "ding" ? `Doorbell at ${e.cam.name}` : `Motion at ${e.cam.name}`),
+        h("span", { class: "txt" }, `${e.kind === "ding" ? "Doorbell" : e.label || "Motion"} at ${this._labelFor(e.cam)}`),
         h("span", { class: "when", title: new Date(e.ts).toLocaleString() }, Date.now() - e.ts < 3600000 ? since(e.ts) : new Date(e.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
       );
       btn.addEventListener("click", () => this._openFocus(e.cam.entity));
@@ -964,6 +1180,10 @@ class CameraWallCard extends HTMLElement {
     }
     if (!items.length) items.push(h("li", { class: "empty" }, this._historyLoaded ? "Nothing yet" : "Loading"));
     this._logList.replaceChildren(...items);
+  }
+
+  _labelFor(cam) {
+    return this._tiles?.find((t) => t.cam.entity === cam.entity)?.label || cam.name;
   }
 
   _bindPress(el, onTap, onHold) {
@@ -1001,7 +1221,287 @@ class CameraWallCard extends HTMLElement {
   }
 }
 
+const EDITOR_STYLE = `
+:host { display: block; }
+.row { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+label.field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; font-size: 12px; color: var(--secondary-text-color); }
+input[type=text], input[type=number], input[type=search] {
+  box-sizing: border-box; width: 100%; padding: 8px 10px; border-radius: 6px; font: inherit; font-size: 14px;
+  border: 1px solid var(--divider-color, #444); background: var(--card-background-color, #1c1c1c); color: var(--primary-text-color);
+}
+h4 { margin: 18px 0 6px; font-size: 14px; font-weight: 600; }
+p.hint { margin: 0 0 10px; font-size: 12px; color: var(--secondary-text-color); }
+.view { border: 1px solid var(--divider-color, #444); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+.view-head { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+.view-head label.field { min-width: 0; }
+button {
+  padding: 7px 12px; border-radius: 6px; border: 1px solid var(--divider-color, #444); background: none;
+  color: var(--primary-text-color); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+button.primary { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+button.danger { color: var(--error-color, #db4437); }
+button:disabled { opacity: 0.4; cursor: default; }
+.tools { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.tools input { flex: 1; }
+.count { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
+.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 10px; max-height: 280px; overflow-y: auto; padding: 2px; }
+.list label { display: flex; align-items: center; gap: 6px; padding: 4px 2px; font-size: 13px; cursor: pointer; min-width: 0; }
+.list label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list label small { color: var(--secondary-text-color); font-size: 11px; margin-left: auto; }
+.sub { margin: 10px 0 6px; font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.06em; }
+.chosen { display: flex; flex-direction: column; gap: 4px; }
+.cam-row { display: flex; align-items: center; gap: 6px; }
+.cam-row .num { width: 18px; text-align: right; font-size: 12px; color: var(--secondary-text-color); }
+.cam-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cam-name small { font-size: 11px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-row button { padding: 6px 9px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; cursor: pointer; }
+`;
+
+class CameraWallCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._filters = {};
+  }
+
+  setConfig(config) {
+    this._config = JSON.parse(JSON.stringify(config || {}));
+    if (JSON.stringify(config) !== this._sent) this._render();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (first) this._render();
+  }
+
+  _options() {
+    const cfg = { ...this._config, views: undefined, cameras: undefined, exclude: undefined, discover: undefined };
+    let cams = discoverCameras(this._hass, cfg, true);
+    if (!cams.length) {
+      cams = Object.keys(this._hass.states)
+        .filter((id) => id.startsWith("camera."))
+        .map((id) => resolveCamera(this._hass, cfg, { entity: id }));
+    }
+    const known = new Set(cams.map((c) => c.entity));
+    for (const v of this._config.views || []) {
+      for (const c of [].concat(v.cameras || [])) {
+        const id = typeof c === "string" ? c : c?.entity;
+        if (id && !known.has(id)) {
+          known.add(id);
+          cams.push(resolveCamera(this._hass, cfg, { entity: id }));
+        }
+      }
+    }
+    return cams;
+  }
+
+  _emit() {
+    const config = { ...this._config };
+    if (Array.isArray(config.views) && !config.views.length) delete config.views;
+    this._sent = JSON.stringify(config);
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+
+  _set(key, value) {
+    if (value === "" || value == null) delete this._config[key];
+    else this._config[key] = value;
+    this._emit();
+  }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    const style = h("style");
+    style.textContent = EDITOR_STYLE;
+    const root = h("div");
+    const cams = this._options();
+    const views = Array.isArray(this._config.views) ? this._config.views : [];
+
+    const title = h("input", { type: "text", value: this._config.title ?? "Cameras" });
+    title.addEventListener("change", () => this._set("title", title.value));
+    root.append(h("div", { class: "row" }, h("label", { class: "field" }, "Title", title)));
+
+    root.append(h("h4", {}, "Views"));
+    root.append(
+      h(
+        "p",
+        { class: "hint" },
+        views.length
+          ? "Each view is a tab on the card, for example one per property. Pick its cameras below, give them your own names and put them in order."
+          : `No views yet, so the card shows all ${cams.length} cameras with tabs by area. Add a view for each property to pick cameras and name them.`,
+      ),
+    );
+    views.forEach((v, i) => root.append(this._renderView(v, i, views, cams)));
+    const add = h("button", { class: "primary", type: "button" }, "Add view");
+    add.addEventListener("click", () => {
+      this._config.views = [...views, { name: `View ${views.length + 1}`, cameras: [] }];
+      this._emit();
+      this._render();
+    });
+    root.append(h("div", { class: "row" }, add));
+
+    if (views.length) root.append(this._check("all_tab", "Also show an All tab", false));
+    root.append(h("h4", {}, "Options"));
+    root.append(this._check("ding_popup", "Open a camera live when its doorbell rings", true));
+    root.append(this._check("log", "Activity feed", true));
+    root.append(this._check("live", "Live video in the grid (off shows refreshing snapshots)", true));
+    const refresh = h("input", { type: "number", min: "2", step: "1", value: this._config.refresh ?? 20 });
+    refresh.addEventListener("change", () => this._set("refresh", refresh.value ? Number(refresh.value) : null));
+    const cols = h("input", { type: "number", min: "1", step: "1", value: this._config.columns ?? "", placeholder: "Auto" });
+    cols.addEventListener("change", () => this._set("columns", cols.value ? Number(cols.value) : null));
+    root.append(
+      h(
+        "div",
+        { class: "row" },
+        h("label", { class: "field" }, "Seconds to refresh every snapshot", refresh),
+        h("label", { class: "field" }, "Columns", cols),
+      ),
+    );
+    this.shadowRoot.replaceChildren(style, root);
+  }
+
+  _check(key, text, def) {
+    const box = h("input", { type: "checkbox" });
+    box.checked = this._config[key] ?? def;
+    box.addEventListener("change", () => this._set(key, box.checked === def ? null : box.checked));
+    return h("label", { class: "check" }, box, text);
+  }
+
+  _renderView(view, i, views, cams) {
+    const byId = new Map(cams.map((c) => [c.entity, c]));
+    const items = () => [].concat(view.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : { ...c })).filter((c) => c.entity);
+    const store = (list) => {
+      view.cameras = list.map((c) => (c.name || c.live === false ? c : c.entity));
+      views[i] = view;
+      this._config.views = [...views];
+      this._emit();
+    };
+    const rerender = () => this._render();
+
+    const name = h("input", { type: "text", value: view.name || "", placeholder: "e.g. Main House" });
+    name.addEventListener("change", () => {
+      view.name = name.value;
+      store(items());
+    });
+    const left = h("button", { type: "button", title: "Move tab left" }, "←");
+    const right = h("button", { type: "button", title: "Move tab right" }, "→");
+    left.disabled = i === 0;
+    right.disabled = i === views.length - 1;
+    const move = (d) => {
+      const next = [...views];
+      [next[i], next[i + d]] = [next[i + d], next[i]];
+      this._config.views = next;
+      this._emit();
+      rerender();
+    };
+    left.addEventListener("click", () => move(-1));
+    right.addEventListener("click", () => move(1));
+    const remove = h("button", { class: "danger", type: "button" }, "Remove");
+    remove.addEventListener("click", () => {
+      this._config.views = views.filter((_, k) => k !== i);
+      this._emit();
+      rerender();
+    });
+
+    const chosen = h("div", { class: "chosen" });
+    const list = items();
+    if (!list.length) chosen.append(h("p", { class: "hint" }, "No cameras picked yet, so this tab shows every camera. Tick some below."));
+    list.forEach((it, k) => {
+      const cam = byId.get(it.entity);
+      const input = h("input", { type: "text", value: it.name || "", placeholder: cam?.name || it.entity });
+      input.addEventListener("change", () => {
+        const cur = items();
+        cur[k].name = input.value.trim() || undefined;
+        if (!cur[k].name) delete cur[k].name;
+        store(cur);
+      });
+      const shift = (d) => {
+        const cur = items();
+        [cur[k], cur[k + d]] = [cur[k + d], cur[k]];
+        store(cur);
+        rerender();
+      };
+      const up = h("button", { type: "button", title: "Move up" }, "↑");
+      const down = h("button", { type: "button", title: "Move down" }, "↓");
+      up.disabled = k === 0;
+      down.disabled = k === list.length - 1;
+      up.addEventListener("click", () => shift(-1));
+      down.addEventListener("click", () => shift(1));
+      const del = h("button", { class: "danger", type: "button", title: "Remove from this tab" }, "✕");
+      del.addEventListener("click", () => {
+        store(items().filter((_, x) => x !== k));
+        rerender();
+      });
+      chosen.append(
+        h(
+          "div",
+          { class: "cam-row" },
+          h("span", { class: "num" }, String(k + 1)),
+          h("div", { class: "cam-name" }, input, h("small", {}, `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}`)),
+          up,
+          down,
+          del,
+        ),
+      );
+    });
+
+    const count = h("span", { class: "count" }, list.length ? `${list.length} picked` : "All cameras");
+    const search = h("input", { type: "search", placeholder: "Search cameras", value: this._filters[i] || "" });
+    const picker = h("div", { class: "list" });
+    const picked = new Set(list.map((c) => c.entity));
+    const rows = cams.map((c) => {
+      const box = h("input", { type: "checkbox" });
+      box.checked = picked.has(c.entity);
+      box.addEventListener("change", () => {
+        const cur = items();
+        store(box.checked ? [...cur, { entity: c.entity }] : cur.filter((x) => x.entity !== c.entity));
+        rerender();
+      });
+      const tag = PLATFORM_NAMES[c.platform] || c.group || "";
+      const row = h("label", { title: c.entity }, box, h("span", {}, c.name), tag ? h("small", {}, tag) : null);
+      row.dataset.q = `${c.name} ${c.entity} ${c.group || ""} ${tag}`.toLowerCase();
+      return row;
+    });
+    const filter = () => {
+      const q = search.value.trim().toLowerCase();
+      this._filters[i] = search.value;
+      for (const r of rows) r.style.display = !q || r.dataset.q.includes(q) ? "" : "none";
+    };
+    search.addEventListener("input", filter);
+    picker.append(...rows);
+    filter();
+    const tickAll = h("button", { type: "button" }, "Tick shown");
+    tickAll.addEventListener("click", () => {
+      const cur = items();
+      const have = new Set(cur.map((c) => c.entity));
+      cams.forEach((c, k) => {
+        if (rows[k].style.display !== "none" && !have.has(c.entity)) cur.push({ entity: c.entity });
+      });
+      store(cur);
+      rerender();
+    });
+    const clear = h("button", { type: "button" }, "Clear");
+    clear.addEventListener("click", () => {
+      store([]);
+      rerender();
+    });
+
+    return h(
+      "div",
+      { class: "view" },
+      h("div", { class: "view-head" }, h("label", { class: "field" }, "Tab name", name), left, right, remove),
+      h("div", { class: "sub" }, "Cameras on this tab"),
+      chosen,
+      h("div", { class: "sub" }, "Add cameras"),
+      h("div", { class: "tools" }, search, tickAll, clear, count),
+      picker,
+    );
+  }
+}
+
 customElements.define("camera-wall-card", CameraWallCard);
+customElements.define("camera-wall-card-editor", CameraWallCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
