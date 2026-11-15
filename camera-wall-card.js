@@ -1,0 +1,1014 @@
+const VERSION = "0.1.0";
+
+const ICON = {
+  cctv: "M6.03 12.03L8.03 15.5L5.5 18.68L2 12.62L6.03 12.03M17 18V15.29C17.88 14.9 18.5 14.03 18.5 13C18.5 12.43 18.3 11.9 17.97 11.5L19.94 10.35C20.95 9.76 21.3 8.47 20.71 7.46L19.33 5.06C18.74 4.05 17.45 3.7 16.44 4.28L8.31 9C7.36 9.53 7.03 10.75 7.58 11.71L9.08 14.31C9.63 15.26 10.86 15.59 11.81 15.04L13.69 13.96C14 14.65 14.5 15.04 15 15.29V18C15 19.1 15.9 20 17 20H22V18H17Z",
+  motion: "M10,0.2C9,0.2 8.2,1 8.2,2C8.2,3 9,3.8 10,3.8C11,3.8 11.8,3 11.8,2C11.8,1 11,0.2 10,0.2M15.67,1A7.33,7.33 0 0,0 23,8.33V7A6,6 0 0,1 17,1H15.67M18.33,1C18.33,3.58 20.42,5.67 23,5.67V4.33C21.16,4.33 19.67,2.84 19.67,1H18.33M21,1A2,2 0 0,0 23,3V1H21M7.92,4.03C7.75,4.03 7.58,4.06 7.42,4.11L2,5.8V11H3.8V7.33L5.91,6.67L2,22H3.8L6.67,13.89L9,17V22H10.8V15.59L8.31,11.05L9.04,8.18L10.12,10H15V8.2H11.38L9.38,4.87C9.08,4.37 8.54,4.03 7.92,4.03Z",
+  bell: "M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21",
+  battery: "M16,20H8V6H16M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z",
+  batteryLow: "M16,18H8V6H16M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4M11,9H13V14H11V9M11,15H13V17H11V15Z",
+  offline: "M3.28,2L2,3.27L4.73,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16C16.2,18 16.39,17.92 16.54,17.82L19.73,21L21,19.73M21,6.5L17,10.5V7A1,1 0 0,0 16,6H9.82L21,17.18V6.5Z",
+  close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
+  prev: "M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z",
+  next: "M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z",
+  info: "M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
+  grid: "M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+};
+
+const DEAD_STATES = new Set(["unavailable", "unknown"]);
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function h(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k === "style") node.style.cssText = v;
+    else node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c != null) node.append(c);
+  return node;
+}
+
+const iconSvg = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+
+function icon(path, cls) {
+  const span = h("span", { class: cls ? `ic ${cls}` : "ic" });
+  span.innerHTML = iconSvg(path);
+  return span;
+}
+
+function since(ms) {
+  const sec = Math.max(0, (Date.now() - ms) / 1000);
+  if (sec < 60) return "just now";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
+  return `${Math.floor(sec / 86400)}d`;
+}
+
+function parseTime(v) {
+  if (!v || DEAD_STATES.has(v)) return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : t;
+}
+
+const STYLE = `
+:host {
+  display: block;
+  --hv-bg: #121418;
+  --hv-surface: rgba(29, 33, 39, 0.92);
+  --hv-closed: #3ecf8e;
+  --hv-open: #ff5a5f;
+  --hv-text: #e6edf2;
+  --hv-muted: #8b98a5;
+  --hv-accent: #3d8bff;
+  --hv-warm: #ffc35a;
+  --hv-cool: #5ab4ff;
+}
+ha-card {
+  display: block;
+  container: cw-card / inline-size;
+  padding: 12px 12px 16px;
+  background: var(--hv-bg);
+  color: var(--hv-text);
+  border-radius: var(--ha-card-border-radius, 12px);
+  overflow: hidden;
+  font-family: var(--paper-font-body1_-_font-family, Roboto, system-ui, sans-serif);
+}
+.ic { display: inline-grid; place-items: center; }
+.ic svg { width: 16px; height: 16px; fill: currentColor; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.title { font-size: 18px; font-weight: 600; margin-right: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05);
+  color: var(--hv-text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.chip.ok { color: var(--hv-closed); }
+.chip.alert { color: var(--hv-open); background: rgba(255,90,95,0.12); border-color: rgba(255,90,95,0.35); }
+.chip.ding { color: #fff; background: var(--hv-open); border-color: var(--hv-open); }
+.chip.warm { color: var(--hv-warm); }
+.chip.cool { color: var(--hv-cool); }
+.tabs {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,0.05);
+  max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+.tab {
+  border: 0; background: none; color: var(--hv-muted); padding: 6px 12px; border-radius: 7px;
+  font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.tab .n { margin-left: 5px; opacity: 0.6; font-size: 11px; }
+.tab.on { background: var(--hv-accent); color: #fff; }
+.tab.on .n { opacity: 0.8; }
+@container cw-card (min-width: 860px) {
+  .top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-bottom: 12px; }
+  .top .tabs { justify-self: center; }
+  .top .chips { justify-self: end; }
+  .title { margin: 0; }
+}
+.body { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.main { position: relative; min-width: 0; }
+.grid {
+  display: grid; gap: var(--cw-gap, 8px);
+  grid-template-columns: repeat(var(--cols, auto-fill), minmax(var(--cw-min-width, 160px), 1fr));
+}
+.grid.fixed { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.grid.fit { grid-template-columns: repeat(var(--cols), var(--tile-w)); justify-content: center; align-content: start; }
+.tile {
+  position: relative; display: block; padding: 0; margin: 0; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  overflow: hidden; background: #000; color: #fff; font: inherit; text-align: left; cursor: pointer;
+  aspect-ratio: var(--cw-aspect, 16 / 9); min-width: 0; -webkit-tap-highlight-color: transparent;
+}
+.tile:focus-visible { outline: 2px solid var(--hv-accent); outline-offset: 2px; }
+.tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; }
+.tile img.ready { opacity: 1; }
+.tile .shade { position: absolute; inset: auto 0 0 0; height: 46%; background: linear-gradient(transparent, rgba(0,0,0,0.75)); pointer-events: none; }
+.tile .cap {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: baseline; gap: 6px;
+  padding: 5px 7px; font-size: 12px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+.tile .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .ago { flex: none; color: rgba(255,255,255,0.7); font-size: 10px; }
+.tile .tags { position: absolute; top: 5px; left: 5px; right: 5px; display: flex; align-items: center; gap: 4px; pointer-events: none; }
+.tile .live {
+  display: flex; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 4px;
+  background: rgba(0,0,0,0.6); font-size: 10px; letter-spacing: 0.04em;
+}
+.tile .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--hv-closed); }
+.tile .badge {
+  display: none; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px;
+  background: var(--hv-open); color: #fff; font-size: 10px; font-weight: 600; white-space: nowrap;
+}
+.tile .badge .ic svg { width: 11px; height: 11px; }
+.tile .bat {
+  display: none; align-items: center; gap: 1px; margin-left: auto; padding: 2px 4px; border-radius: 4px;
+  background: rgba(0,0,0,0.6); font-size: 10px;
+}
+.tile .bat .ic svg { width: 11px; height: 11px; }
+.tile .bat.show { display: flex; }
+.tile .bat.low { color: var(--hv-warm); }
+.tile .bat.crit { color: var(--hv-open); }
+.tile .empty {
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 4px;
+  color: var(--hv-muted); font-size: 11px; pointer-events: none;
+}
+.tile .empty svg { width: 26px; height: 26px; opacity: 0.6; }
+.tile img.ready ~ .empty { display: none; }
+.tile.motion { border-color: var(--hv-open); box-shadow: 0 0 0 1px var(--hv-open), 0 0 18px rgba(255,90,95,0.4); }
+.tile.motion .badge.m, .tile.ding .badge.d { display: flex; }
+.tile.motion .live, .tile.ding .live { display: none; }
+.tile.ding { border-color: var(--hv-open); animation: ring 1s ease-in-out infinite; }
+.tile.dead { border-style: dashed; cursor: default; }
+.tile.dead img { filter: grayscale(1) brightness(0.5); }
+.tile.dead .live { display: none; }
+.tile.dead .empty { display: grid !important; z-index: 1; color: var(--hv-text); }
+.tile.missing { border-style: dashed; opacity: 0.5; }
+.tile.hidden { display: none; }
+.log {
+  display: flex; flex-direction: column; box-sizing: border-box; max-height: 340px; padding: 10px 6px 6px; min-width: 0;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03);
+}
+.log h3 { margin: 0 8px 6px; color: var(--hv-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.log ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: thin; }
+.log .day { padding: 10px 8px 4px; color: var(--hv-muted); font-size: 11px; font-weight: 600; }
+.log .day:first-child { padding-top: 2px; }
+.log .item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px;
+  background: none; color: var(--hv-text); font: inherit; text-align: left; cursor: pointer;
+}
+.log .item:hover { background: rgba(255,255,255,0.05); }
+.log .dot { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; color: var(--hv-cool); background: rgba(90,180,255,0.12); }
+.log .dot svg { width: 16px; height: 16px; fill: currentColor; }
+.log .ding .dot { color: #fff; background: var(--hv-open); }
+.log .txt { flex: 1; min-width: 0; font-size: 13px; line-height: 1.3; }
+.log .when { flex: none; color: var(--hv-muted); font-size: 11px; white-space: nowrap; }
+.log .empty { padding: 8px; color: var(--hv-muted); font-size: 13px; }
+@container cw-card (min-width: 860px) {
+  .body.with-log { grid-template-columns: minmax(0, 1fr) var(--hv-log-width, 280px); align-items: start; }
+  .body.with-log > .log { max-height: none; height: var(--cw-height, calc(100vh - 110px)); position: sticky; top: 0; }
+}
+.focus {
+  position: absolute; inset: 0; z-index: 3; display: none; flex-direction: column; gap: 8px;
+  background: var(--hv-bg); border-radius: 10px;
+}
+.main.focused { overflow: hidden; }
+.main.focused .grid { visibility: hidden; }
+.focus.open { display: flex; }
+.focus .bar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 2px; }
+.focus .fname { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus .fmeta { display: flex; gap: 6px; flex-wrap: wrap; margin-right: auto; }
+.focus .fmeta .chip { height: 24px; font-size: 12px; cursor: default; }
+.focus .btn {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--hv-text); cursor: pointer;
+}
+.focus .btn svg { width: 20px; height: 20px; fill: currentColor; }
+.focus .btn:hover { background: rgba(255,255,255,0.1); }
+.focus .stream { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; border-radius: 8px; background: #000; }
+.focus .stream > * { width: 100%; max-height: 100%; }
+.focus .stream img { width: 100%; height: 100%; object-fit: contain; }
+.focus .stream hui-picture-entity-card, .focus .stream ha-card { --ha-card-border-radius: 0; }
+.focus .count { color: var(--hv-muted); font-size: 12px; white-space: nowrap; }
+.focus .timer { color: var(--hv-muted); font-size: 12px; white-space: nowrap; }
+@keyframes ring { 50% { box-shadow: 0 0 0 2px var(--hv-open), 0 0 26px rgba(255,90,95,0.7); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+`;
+
+class CameraWallCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._tab = "all";
+    this._built = false;
+    this._sig = "";
+  }
+
+  static getStubConfig() {
+    return { title: "Cameras" };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    this._config = { title: "Cameras", platform: "ring", refresh: 20, motion_seconds: 90, ...config };
+    this._events = [];
+    this._historyLoaded = false;
+    this._built = false;
+    this._sig = "";
+    if (this._hass) this._build();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (!this._config) return;
+    const cams = this._discover();
+    const sig = cams.map((c) => c.entity).join("|");
+    if (!this._built || sig !== this._sig) {
+      this._cams = cams;
+      this._sig = sig;
+      this._build();
+    }
+    this._update(first);
+    if (this._live) this._live.hass = hass;
+  }
+
+  get hass() {
+    return this._hass;
+  }
+
+  getCardSize() {
+    return 12;
+  }
+
+  getGridOptions() {
+    return { columns: "full", rows: "auto", min_columns: 6 };
+  }
+
+  connectedCallback() {
+    this._tick = setInterval(() => this._update(), 5000);
+    this._ro = new ResizeObserver(() => this._layout());
+    this._ro.observe(this);
+    this._onResize = () => this._layout();
+    addEventListener("resize", this._onResize);
+    this._onKey = (e) => {
+      if (!this._focusId) return;
+      if (e.key === "Escape") this._closeFocus();
+      else if (e.key === "ArrowRight") this._step(1);
+      else if (e.key === "ArrowLeft") this._step(-1);
+    };
+    addEventListener("keydown", this._onKey);
+    this._onVis = () => {
+      if (!document.hidden) this._refreshAll();
+    };
+    document.addEventListener("visibilitychange", this._onVis);
+    this._schedule();
+    if (this._built) this._layout();
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._tick);
+    clearInterval(this._snapTick);
+    clearTimeout(this._popupTimer);
+    this._ro?.disconnect();
+    this._io?.disconnect();
+    removeEventListener("resize", this._onResize);
+    removeEventListener("keydown", this._onKey);
+    document.removeEventListener("visibilitychange", this._onVis);
+    this._dropLive();
+  }
+
+  _discover() {
+    const cfg = this._config;
+    const hass = this._hass;
+    const reg = hass.entities || {};
+    const exclude = new Set([].concat(cfg.exclude || []));
+    const listed = [].concat(cfg.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : c));
+    const out = [];
+    const seen = new Set();
+    const add = (c) => {
+      if (!c.entity || seen.has(c.entity) || exclude.has(c.entity)) return;
+      seen.add(c.entity);
+      out.push(this._resolve(c));
+    };
+    for (const c of listed) add(c);
+    if (cfg.platform && (!listed.length || cfg.discover === true)) {
+      const found = Object.keys(hass.states).filter((id) => {
+        if (!id.startsWith("camera.")) return false;
+        const r = reg[id];
+        if (r) {
+          if (r.hidden && !cfg.show_hidden) return false;
+          if (r.platform && r.platform !== cfg.platform) return false;
+          const key = r.translation_key || "";
+          if (key === "last_recording" || id.endsWith("_last_recording")) return !!cfg.include_last_recording;
+          return true;
+        }
+        if (id.endsWith("_last_recording")) return !!cfg.include_last_recording;
+        return cfg.platform !== "ring" || id.endsWith("_live_view");
+      });
+      const items = found.map((id) => this._resolve({ entity: id }));
+      items.sort((a, b) => (a.group || "~").localeCompare(b.group || "~") || a.name.localeCompare(b.name));
+      for (const c of items) add(c);
+    }
+    return out;
+  }
+
+  _resolve(c) {
+    const hass = this._hass;
+    const reg = hass.entities || {};
+    const r = reg[c.entity];
+    const dev = r?.device_id ? hass.devices?.[r.device_id] : null;
+    const base = c.entity.replace(/^camera\./, "").replace(/_(live_view|last_recording)$/, "");
+    const siblings = r?.device_id ? Object.values(reg).filter((e) => e.device_id === r.device_id) : [];
+    const pick = (domain, key, suffixes) => {
+      const byKey = siblings.find((e) => e.entity_id.startsWith(`${domain}.`) && e.translation_key === key);
+      if (byKey) return byKey.entity_id;
+      for (const s of suffixes) {
+        const id = `${domain}.${base}_${s}`;
+        if (hass.states[id]) return id;
+      }
+      return null;
+    };
+    const battery =
+      c.battery !== undefined
+        ? c.battery
+        : siblings.find((e) => e.entity_id.startsWith("sensor.") && hass.states[e.entity_id]?.attributes.device_class === "battery")?.entity_id ||
+          pick("sensor", "battery", ["battery"]);
+    const areaId = r?.area_id || dev?.area_id;
+    const group = c.group || (this._config.groups !== false && areaId ? hass.areas?.[areaId]?.name : null) || null;
+    const fallbackName = hass.states[c.entity]?.attributes.friendly_name?.replace(/ (Live view|Last recording)$/i, "") || base.replace(/_/g, " ");
+    return {
+      ...c,
+      name: c.name || dev?.name_by_user || dev?.name || fallbackName,
+      group,
+      motion: [].concat(c.motion !== undefined ? c.motion || [] : [pick("event", "motion", ["motion"]) || pick("binary_sensor", "motion", ["motion"])]).filter(Boolean),
+      ding: [].concat(c.ding !== undefined ? c.ding || [] : [pick("event", "ding", ["ding"]) || pick("binary_sensor", "ding", ["ding"])]).filter(Boolean),
+      battery,
+      snapshot: c.snapshot || c.entity,
+    };
+  }
+
+  _build() {
+    const cfg = this._config;
+    if (!this._hass) return;
+    if (!this._cams) {
+      this._cams = this._discover();
+      this._sig = this._cams.map((c) => c.entity).join("|");
+    }
+    this._built = true;
+    this._dropLive();
+    this._focusId = null;
+
+    const style = h("style");
+    style.textContent = STYLE;
+    const card = h("ha-card");
+    const top = h("div", { class: "top" });
+    top.append(h("div", { class: "title" }, cfg.title || ""));
+    this._tabsEl = h("div", { class: "tabs", role: "tablist" });
+    top.append(this._tabsEl);
+    this._chips = h("div", { class: "chips" });
+    top.append(this._chips);
+    card.append(top);
+
+    const body = h("div", { class: "body" });
+    const main = h("div", { class: "main" });
+    this._main = main;
+    this._grid = h("div", { class: "grid" });
+    if (cfg.aspect) this.style.setProperty("--cw-aspect", String(cfg.aspect).replace(":", " / "));
+
+    this._io?.disconnect();
+    this._io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        const t = this._tiles.find((x) => x.el === en.target);
+        if (!t) continue;
+        t.visible = en.isIntersecting;
+        if (t.visible && !t.loaded) this._snap(t);
+      }
+    });
+
+    this._tiles = this._cams.map((cam) => this._buildTile(cam));
+    for (const t of this._tiles) {
+      this._grid.append(t.el);
+      this._io.observe(t.el);
+    }
+    if (!this._tiles.length) {
+      this._grid.append(h("div", { class: "log" }, h("div", { class: "empty" }, `No ${cfg.platform || ""} cameras found. Add them under cameras:.`)));
+    }
+    main.append(this._grid, this._buildFocus());
+    body.append(main);
+
+    this._logList = null;
+    if (cfg.log !== false && this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length)) {
+      this._logList = h("ul");
+      const log = h("div", { class: "log" }, h("h3", {}, cfg.log_title || "Activity"), this._logList);
+      body.append(log);
+      body.classList.add("with-log");
+    }
+    card.append(body);
+    this.shadowRoot.replaceChildren(style, card);
+
+    this._renderTabs();
+    this._applyTab();
+    this._schedule();
+    this._loadHistory();
+    requestAnimationFrame(() => this._layout());
+  }
+
+  _buildTile(cam) {
+    const img = h("img", { alt: "", decoding: "async", draggable: "false" });
+    const live = h("span", { class: "live" }, "LIVE");
+    const motion = h("span", { class: "badge m" }, icon(ICON.motion), "Motion");
+    const ding = h("span", { class: "badge d" }, icon(ICON.bell), "Ding");
+    const bat = h("span", { class: "bat" });
+    const empty = h("span", { class: "empty" });
+    empty.innerHTML = iconSvg(ICON.cctv);
+    const emptyTxt = h("span", {}, "Loading");
+    empty.append(emptyTxt);
+    const ago = h("span", { class: "ago" });
+    const el = h(
+      "button",
+      { class: "tile", type: "button", title: cam.name, "aria-label": cam.name },
+      img,
+      empty,
+      h("span", { class: "shade" }),
+      h("span", { class: "tags" }, live, motion, ding, bat),
+      h("span", { class: "cap" }, h("span", { class: "nm" }, cam.name), ago),
+    );
+    const t = { cam, el, img, bat, ago, emptyTxt, visible: false, loaded: false, lastMotion: null, lastDing: null };
+    img.addEventListener("load", () => {
+      img.classList.add("ready");
+      t.loaded = true;
+    });
+    img.addEventListener("error", () => {
+      t.loaded = false;
+      emptyTxt.textContent = "No image";
+    });
+    this._bindPress(el, () => this._openFocus(cam.entity), () => this._moreInfo(cam.entity));
+    return t;
+  }
+
+  _buildFocus() {
+    const btn = (path, label, fn) => {
+      const b = h("button", { class: "btn", type: "button", title: label, "aria-label": label });
+      b.innerHTML = iconSvg(path);
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._cancelPopupTimer();
+        fn();
+      });
+      return b;
+    };
+    this._fName = h("div", { class: "fname" });
+    this._fMeta = h("div", { class: "fmeta" });
+    this._fCount = h("span", { class: "count" });
+    this._fTimer = h("span", { class: "timer" });
+    this._fStream = h("div", { class: "stream" });
+    this._fStream.addEventListener("pointerdown", () => this._cancelPopupTimer());
+    this._focus = h(
+      "div",
+      { class: "focus", role: "dialog", "aria-modal": "false" },
+      h(
+        "div",
+        { class: "bar" },
+        btn(ICON.prev, "Previous camera", () => this._step(-1)),
+        this._fName,
+        this._fMeta,
+        this._fTimer,
+        this._fCount,
+        btn(ICON.next, "Next camera", () => this._step(1)),
+        btn(ICON.info, "Details", () => this._moreInfo(this._focusId)),
+        btn(ICON.grid, "Back to all cameras", () => this._closeFocus()),
+      ),
+      this._fStream,
+    );
+    return this._focus;
+  }
+
+  _visibleTiles() {
+    return this._tiles.filter((t) => !t.el.classList.contains("hidden"));
+  }
+
+  _step(dir) {
+    const list = this._visibleTiles();
+    if (!list.length) return;
+    const i = list.findIndex((t) => t.cam.entity === this._focusId);
+    const next = list[(i + dir + list.length) % list.length];
+    this._openFocus(next.cam.entity);
+  }
+
+  async _openFocus(entity, auto = false) {
+    const t = this._tiles.find((x) => x.cam.entity === entity);
+    if (!t) return;
+    this._fire("haptic", "selection");
+    this._focusId = entity;
+    this._focus.classList.add("open");
+    this._main.classList.add("focused");
+    this._fName.textContent = t.cam.name;
+    this._renderFocusMeta();
+    const list = this._visibleTiles();
+    const idx = list.indexOf(t);
+    this._fCount.textContent = idx >= 0 ? `${idx + 1} / ${list.length}` : "";
+    clearTimeout(this._popupTimer);
+    this._fTimer.textContent = "";
+    if (auto) this._startPopupTimer();
+    this._fitFocus();
+
+    this._dropLive();
+    const token = (this._liveToken = {});
+    let el = null;
+    if (window.loadCardHelpers) {
+      try {
+        const helpers = await window.loadCardHelpers();
+        if (token !== this._liveToken) return;
+        el = helpers.createCardElement({
+          type: "picture-entity",
+          entity: entity,
+          camera_view: "live",
+          show_name: false,
+          show_state: false,
+          tap_action: { action: "none" },
+          hold_action: { action: "none" },
+        });
+        el.hass = this._hass;
+      } catch (err) {
+        console.warn("camera-wall-card: live view unavailable, showing snapshots", err);
+        el = null;
+      }
+    }
+    if (!el) {
+      el = h("img", { alt: t.cam.name });
+      el.src = this._picUrl(t.cam.snapshot) || "";
+      this._fallbackTick = setInterval(() => {
+        const u = this._picUrl(t.cam.snapshot);
+        if (u) el.src = u;
+      }, 2000);
+    }
+    this._live = el;
+    this._fStream.replaceChildren(el);
+  }
+
+  _closeFocus() {
+    clearTimeout(this._popupTimer);
+    this._focusId = null;
+    this._focus.classList.remove("open");
+    this._main.classList.remove("focused");
+    this._dropLive();
+    this._refreshAll();
+  }
+
+  _dropLive() {
+    this._liveToken = null;
+    clearInterval(this._fallbackTick);
+    if (this._live) this._live.remove();
+    this._live = null;
+  }
+
+  _startPopupTimer() {
+    const secs = Number(this._config.popup_seconds ?? 60);
+    if (!secs) return;
+    const end = Date.now() + secs * 1000;
+    const tick = () => {
+      const left = Math.ceil((end - Date.now()) / 1000);
+      if (left <= 0) return this._closeFocus();
+      this._fTimer.textContent = `Closing in ${left}s`;
+      this._popupTimer = setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  _cancelPopupTimer() {
+    clearTimeout(this._popupTimer);
+    if (this._fTimer) this._fTimer.textContent = "";
+  }
+
+  _renderFocusMeta() {
+    const t = this._tiles.find((x) => x.cam.entity === this._focusId);
+    if (!t) return;
+    const chips = [];
+    if (t.cam.group) chips.push(h("span", { class: "chip" }, t.cam.group));
+    const bat = this._battery(t.cam);
+    if (bat != null) {
+      const cls = bat <= 10 ? "alert" : bat <= (this._config.battery_low ?? 20) ? "warm" : "";
+      chips.push(h("span", { class: `chip ${cls}` }, icon(bat <= 20 ? ICON.batteryLow : ICON.battery), `${bat}%`));
+    }
+    if (t.lastMotion) chips.push(h("span", { class: `chip ${this._active(t.lastMotion) ? "alert" : ""}` }, icon(ICON.motion), since(t.lastMotion)));
+    if (t.lastDing) chips.push(h("span", { class: `chip ${this._active(t.lastDing) ? "ding" : ""}` }, icon(ICON.bell), since(t.lastDing)));
+    this._fMeta.replaceChildren(...chips);
+  }
+
+  _groups() {
+    const counts = new Map();
+    for (const t of this._tiles) if (t.cam.group) counts.set(t.cam.group, (counts.get(t.cam.group) || 0) + 1);
+    return [...counts.entries()];
+  }
+
+  _renderTabs() {
+    const tabs = [["all", "All", this._tiles.length]];
+    for (const [g, n] of this._groups()) tabs.push([`g:${g}`, g, n]);
+    if (this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length)) tabs.push(["active", "Recent", null]);
+    if (this._tiles.some((t) => t.cam.battery)) tabs.push(["battery", "Battery", null]);
+    if (!tabs.some(([k]) => k === this._tab)) this._tab = "all";
+    if (tabs.length < 2) {
+      this._tabsEl.style.display = "none";
+      return;
+    }
+    this._tabsEl.style.display = "";
+    this._tabsEl.replaceChildren(
+      ...tabs.map(([key, label, n]) => {
+        const b = h("button", { class: `tab${key === this._tab ? " on" : ""}`, type: "button", role: "tab", "data-k": key }, label);
+        if (n != null) b.append(h("span", { class: "n" }, String(n)));
+        b.addEventListener("click", () => {
+          this._tab = key;
+          for (const x of this._tabsEl.children) x.classList.toggle("on", x.dataset.k === key);
+          this._applyTab();
+          this._layout();
+        });
+        return b;
+      }),
+    );
+  }
+
+  _applyTab() {
+    const tab = this._tab;
+    const recent = (this._config.recent_minutes ?? 30) * 60000;
+    for (const t of this._tiles) {
+      let show = true;
+      if (tab.startsWith("g:")) show = t.cam.group === tab.slice(2);
+      else if (tab === "active") show = [t.lastMotion, t.lastDing].some((x) => x && Date.now() - x < recent);
+      else if (tab === "battery") show = this._battery(t.cam) != null;
+      t.el.classList.toggle("hidden", !show);
+    }
+    if (tab === "battery") {
+      const sorted = [...this._tiles].sort((a, b) => (this._battery(a.cam) ?? 999) - (this._battery(b.cam) ?? 999));
+      this._grid.append(...sorted.map((t) => t.el));
+    } else if (this._sortedByBattery) {
+      this._grid.append(...this._tiles.map((t) => t.el));
+    }
+    this._sortedByBattery = tab === "battery";
+  }
+
+  _layout() {
+    if (!this._grid || !this.isConnected) return;
+    const cfg = this._config;
+    const grid = this._grid;
+    const width = grid.clientWidth;
+    const vh = window.innerHeight;
+    const rect = grid.getBoundingClientRect();
+    const height = Math.max(240, Number(cfg.height) || vh - Math.max(0, rect.top) - 24);
+    this.style.setProperty("--cw-height", `${Math.round(height)}px`);
+    grid.classList.remove("fit", "fixed");
+    grid.style.removeProperty("--cols");
+    grid.style.removeProperty("--tile-w");
+    if (cfg.columns) {
+      grid.classList.add("fixed");
+      grid.style.setProperty("--cols", cfg.columns);
+      this._fitFocus();
+      return;
+    }
+    const fitWanted = cfg.fit === true || (cfg.fit !== false && width >= 700);
+    const n = this._visibleTiles().length;
+    if (!fitWanted || !n || !width) {
+      this._fitFocus();
+      return;
+    }
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 8;
+    const [aw, ah] = String(cfg.aspect || "16/9").split(/[:/]/).map(Number);
+    const ratio = ah && aw ? ah / aw : 9 / 16;
+    let best = { cols: 1, w: 0 };
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      let w = (width - gap * (cols - 1)) / cols;
+      const fitH = (height - gap * (rows - 1)) / rows;
+      if (w * ratio > fitH) w = fitH / ratio;
+      if (w > best.w) best = { cols, w };
+    }
+    const minW = Number(cfg.min_tile_width ?? 150);
+    if (best.w < minW) {
+      this._fitFocus();
+      return;
+    }
+    grid.classList.add("fit");
+    grid.style.setProperty("--cols", best.cols);
+    grid.style.setProperty("--tile-w", `${Math.floor(best.w)}px`);
+    this._fitFocus();
+  }
+
+  _fitFocus() {
+    if (!this._focus || !this._main) return;
+    const gridH = this._grid.offsetHeight;
+    const want = Math.min(Number(this.style.getPropertyValue("--cw-height").replace("px", "")) || 600, window.innerHeight - 40);
+    this._main.style.minHeight = this._focusId ? `${Math.max(gridH, Math.min(want, 820), 320)}px` : "";
+  }
+
+  _schedule() {
+    clearInterval(this._snapTick);
+    if (!this._tiles?.length || !this.isConnected) return;
+    const total = Math.max(2, Number(this._config.refresh) || 20) * 1000;
+    const step = Math.max(150, total / this._tiles.length);
+    this._cursor = 0;
+    this._snapTick = setInterval(() => {
+      if (document.hidden || this._focusId) return;
+      const n = this._tiles.length;
+      for (let i = 0; i < n; i++) {
+        const t = this._tiles[(this._cursor + i) % n];
+        if (t.visible && !t.el.classList.contains("hidden")) {
+          this._cursor = (this._cursor + i + 1) % n;
+          this._snap(t);
+          return;
+        }
+      }
+    }, step);
+  }
+
+  _picUrl(entity) {
+    const pic = this._hass?.states[entity]?.attributes.entity_picture;
+    if (!pic) return null;
+    const url = this._hass.hassUrl ? this._hass.hassUrl(pic) : pic;
+    return `${url}${url.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+  }
+
+  _snap(t) {
+    const st = this._hass?.states[t.cam.snapshot];
+    if (!st || DEAD_STATES.has(st.state) || t.pending) return;
+    const url = this._picUrl(t.cam.snapshot);
+    if (!url) return;
+    t.pending = true;
+    const pre = new Image();
+    pre.decoding = "async";
+    const done = () => {
+      t.pending = false;
+    };
+    pre.onload = () => {
+      done();
+      t.img.src = pre.src;
+    };
+    pre.onerror = () => {
+      done();
+      if (!t.loaded) t.emptyTxt.textContent = "No image";
+    };
+    pre.src = url;
+  }
+
+  _refreshAll() {
+    if (!this._tiles) return;
+    this._tiles.forEach((t, i) => {
+      if (t.visible) setTimeout(() => this._snap(t), i * 60);
+    });
+  }
+
+  _lastTime(ids) {
+    let best = null;
+    for (const id of ids) {
+      const st = this._hass.states[id];
+      if (!st) continue;
+      let t = null;
+      if (id.startsWith("event.")) t = parseTime(st.state);
+      else if (id.startsWith("binary_sensor.")) t = st.state === "on" ? Date.now() : parseTime(st.last_changed);
+      if (t && (!best || t > best)) best = t;
+    }
+    return best;
+  }
+
+  _active(t) {
+    return t != null && Date.now() - t < (this._config.motion_seconds ?? 90) * 1000;
+  }
+
+  _battery(cam) {
+    if (!cam.battery) return null;
+    const v = parseFloat(this._hass.states[cam.battery]?.state);
+    return Number.isFinite(v) ? Math.round(v) : null;
+  }
+
+  _update(first = false) {
+    if (!this._built || !this._hass || !this._tiles) return;
+    const hass = this._hass;
+    let online = 0;
+    let motionNow = 0;
+    let dingNow = 0;
+    let lowBat = 0;
+    const lowAt = this._config.battery_low ?? 20;
+    for (const t of this._tiles) {
+      const st = hass.states[t.cam.entity];
+      const missing = !st;
+      const dead = !missing && DEAD_STATES.has(st.state);
+      if (!missing && !dead) online++;
+      t.el.classList.toggle("missing", missing);
+      t.el.classList.toggle("dead", dead);
+      if (missing) t.emptyTxt.textContent = "Not found";
+      else if (dead) t.emptyTxt.textContent = "Offline";
+      else if (!t.loaded) t.emptyTxt.textContent = "Loading";
+
+      const m = this._lastTime(t.cam.motion);
+      const d = this._lastTime(t.cam.ding);
+      if (m && t.lastMotion && m > t.lastMotion) {
+        this._push({ ts: m, kind: "motion", cam: t.cam });
+        if (t.visible) this._snap(t);
+      }
+      if (d && t.lastDing && d > t.lastDing) {
+        this._push({ ts: d, kind: "ding", cam: t.cam });
+        if (this._config.ding_popup !== false && !first) {
+          if (!this._focusId || this._fTimer.textContent) this._openFocus(t.cam.entity, true);
+        }
+      }
+      if (m && !t.lastMotion && !first && this._historyLoaded && Date.now() - m < 120000) this._push({ ts: m, kind: "motion", cam: t.cam });
+      if (d && !t.lastDing && !first && this._historyLoaded && Date.now() - d < 120000) this._push({ ts: d, kind: "ding", cam: t.cam });
+      t.lastMotion = m;
+      t.lastDing = d;
+
+      const mOn = this._active(m);
+      const dOn = this._active(d);
+      if (mOn) motionNow++;
+      if (dOn) dingNow++;
+      t.el.classList.toggle("motion", mOn && !dead);
+      t.el.classList.toggle("ding", dOn && !dead);
+      const latest = Math.max(m || 0, d || 0);
+      t.ago.textContent = latest ? since(latest) : "";
+      t.ago.title = latest ? `Last ${d && d >= (m || 0) ? "ding" : "motion"} ${new Date(latest).toLocaleString()}` : "";
+
+      const b = this._battery(t.cam);
+      t.bat.className = "bat";
+      if (b != null && b <= (this._config.show_battery_below ?? 100)) {
+        t.bat.classList.add("show");
+        if (b <= 10) t.bat.classList.add("crit");
+        else if (b <= lowAt) t.bat.classList.add("low");
+        if (b <= lowAt) lowBat++;
+        t.bat.replaceChildren(icon(b <= lowAt ? ICON.batteryLow : ICON.battery), `${b}%`);
+      }
+    }
+
+    const total = this._tiles.length;
+    const chips = [];
+    const chip = (cls, path, text, tab) => {
+      const c = h("button", { class: `chip ${cls}`, type: "button" }, icon(path), text);
+      c.addEventListener("click", () => {
+        const btn = [...this._tabsEl.children].find((x) => x.dataset.k === tab);
+        btn?.click();
+      });
+      return c;
+    };
+    if (total) chips.push(chip(online === total ? "ok" : "alert", online === total ? ICON.cctv : ICON.offline, online === total ? `${total} online` : `${total - online} offline`, "all"));
+    if (dingNow) chips.push(chip("ding", ICON.bell, `Ding ${dingNow}`, "active"));
+    if (motionNow) chips.push(chip("cool", ICON.motion, `Motion ${motionNow}`, "active"));
+    if (lowBat) chips.push(chip("warm", ICON.batteryLow, `${lowBat} low`, "battery"));
+    this._chips.replaceChildren(...chips);
+
+    if (this._tab === "active") this._applyTab();
+    if (this._focusId) this._renderFocusMeta();
+    if (this._logList) this._renderLog();
+  }
+
+  _push(e) {
+    const key = `${e.cam.entity}|${e.kind}|${e.ts}`;
+    this._seenEvents = this._seenEvents || new Set();
+    if (this._seenEvents.has(key)) return;
+    this._seenEvents.add(key);
+    this._events.push(e);
+    this._events.sort((a, b) => b.ts - a.ts);
+    this._events.length = Math.min(this._events.length, this._config.log_max ?? 80);
+  }
+
+  async _loadHistory() {
+    if (this._historyLoaded || !this._logList || !this._hass.callApi) {
+      this._historyLoaded = true;
+      return;
+    }
+    const byId = new Map();
+    for (const t of this._tiles) {
+      for (const id of t.cam.motion) byId.set(id, { cam: t.cam, kind: "motion" });
+      for (const id of t.cam.ding) byId.set(id, { cam: t.cam, kind: "ding" });
+    }
+    const ids = [...byId.keys()];
+    if (!ids.length) return;
+    const hours = this._config.log_hours ?? 24;
+    const start = new Date(Date.now() - hours * 3600000);
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 40) chunks.push(ids.slice(i, i + 40));
+    try {
+      const results = await Promise.all(
+        chunks.map((c) => this._hass.callApi("GET", `history/period/${start.toISOString()}?filter_entity_id=${c.join(",")}&minimal_response&no_attributes`)),
+      );
+      for (const series of results.flat()) {
+        if (!series?.length) continue;
+        const id = series[0].entity_id;
+        const info = byId.get(id);
+        if (!info) continue;
+        let prev = null;
+        for (const row of series) {
+          let ts = null;
+          if (id.startsWith("event.")) ts = parseTime(row.state);
+          else if (row.state === "on" && prev !== "on") ts = parseTime(row.last_changed);
+          prev = row.state;
+          if (ts && ts >= start.getTime()) this._push({ ts, kind: info.kind, cam: info.cam });
+        }
+      }
+    } catch (err) {
+      console.warn("camera-wall-card: could not load history", err);
+    }
+    for (const [id, info] of byId) {
+      const ts = id.startsWith("event.") ? parseTime(this._hass.states[id]?.state) : null;
+      if (ts && ts >= start.getTime()) this._push({ ts, kind: info.kind, cam: info.cam });
+    }
+    this._historyLoaded = true;
+    this._renderLog();
+  }
+
+  _renderLog() {
+    if (!this._logList) return;
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    const dayName = (ms) => {
+      const d = new Date(ms);
+      if (d.toDateString() === today) return "Today";
+      if (d.toDateString() === yesterday) return "Yesterday";
+      return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+    };
+    const items = [];
+    let lastDay = null;
+    for (const e of this._events) {
+      const day = dayName(e.ts);
+      if (day !== lastDay) {
+        items.push(h("li", { class: "day" }, day));
+        lastDay = day;
+      }
+      const dot = h("span", { class: "dot" });
+      dot.innerHTML = iconSvg(e.kind === "ding" ? ICON.bell : ICON.motion);
+      const btn = h(
+        "button",
+        { class: `item ${e.kind}`, type: "button" },
+        dot,
+        h("span", { class: "txt" }, e.kind === "ding" ? `Doorbell at ${e.cam.name}` : `Motion at ${e.cam.name}`),
+        h("span", { class: "when", title: new Date(e.ts).toLocaleString() }, Date.now() - e.ts < 3600000 ? since(e.ts) : new Date(e.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+      );
+      btn.addEventListener("click", () => this._openFocus(e.cam.entity));
+      items.push(h("li", {}, btn));
+    }
+    if (!items.length) items.push(h("li", { class: "empty" }, this._historyLoaded ? "Nothing yet" : "Loading"));
+    this._logList.replaceChildren(...items);
+  }
+
+  _bindPress(el, onTap, onHold) {
+    let timer = null;
+    let held = false;
+    el.addEventListener("pointerdown", () => {
+      held = false;
+      timer = setTimeout(() => {
+        held = true;
+        onHold();
+      }, 500);
+    });
+    const cancel = () => clearTimeout(timer);
+    el.addEventListener("pointerup", cancel);
+    el.addEventListener("pointerleave", cancel);
+    el.addEventListener("pointercancel", cancel);
+    el.addEventListener("contextmenu", (e) => e.preventDefault());
+    el.addEventListener("click", (e) => {
+      if (held) {
+        e.preventDefault();
+        return;
+      }
+      onTap();
+    });
+  }
+
+  _moreInfo(entityId) {
+    if (!entityId) return;
+    this._fire("haptic", "selection");
+    this._fire("hass-more-info", { entityId });
+  }
+
+  _fire(type, detail) {
+    this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+  }
+}
+
+customElements.define("camera-wall-card", CameraWallCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "camera-wall-card",
+  name: "Camera Wall",
+  description: "Every camera on one screen with motion, doorbell and battery status, and a tap-to-live view.",
+  preview: false,
+});
+
+console.info(`%c CAMERA-WALL-CARD %c ${VERSION} `, "background:#3d8bff;color:#fff;border-radius:3px 0 0 3px", "background:#121418;color:#a9dcef;border-radius:0 3px 3px 0");
