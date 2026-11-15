@@ -1,4 +1,4 @@
-const VERSION = "0.3.2";
+const VERSION = "0.4.0";
 
 const ICON = {
   cctv: "M6.03 12.03L8.03 15.5L5.5 18.68L2 12.62L6.03 12.03M17 18V15.29C17.88 14.9 18.5 14.03 18.5 13C18.5 12.43 18.3 11.9 17.97 11.5L19.94 10.35C20.95 9.76 21.3 8.47 20.71 7.46L19.33 5.06C18.74 4.05 17.45 3.7 16.44 4.28L8.31 9C7.36 9.53 7.03 10.75 7.58 11.71L9.08 14.31C9.63 15.26 10.86 15.59 11.81 15.04L13.69 13.96C14 14.65 14.5 15.04 15 15.29V18C15 19.1 15.9 20 17 20H22V18H17Z",
@@ -12,6 +12,8 @@ const ICON = {
   next: "M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z",
   info: "M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
   grid: "M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  list: "M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z",
+  expand: "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
 };
 
@@ -143,6 +145,44 @@ ha-card { position: relative; }
 }
 .grid.fixed { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
 .grid.fit { grid-template-columns: repeat(var(--cols), var(--tile-w)); justify-content: center; align-content: start; }
+.grid.sized { grid-auto-rows: var(--row-h); grid-auto-flow: dense; }
+.grid.sized .tile { aspect-ratio: auto; }
+.grid .tile.big { grid-column: span 2; }
+.grid.sized .tile.big { grid-row: span 2; }
+.grid.one .tile.big { grid-column: auto; grid-row: auto; }
+.tile .size-btn {
+  position: absolute; top: 5px; right: 5px; z-index: 2; display: none; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(0,0,0,0.65); color: #fff; cursor: pointer;
+}
+.tile .size-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.tile.big .size-btn { background: var(--hv-accent); border-color: var(--hv-accent); }
+.tile.arrange { cursor: grab; outline: 1px dashed rgba(255,255,255,0.35); outline-offset: -1px; touch-action: none; user-select: none; }
+.tile.arrange .tags { display: none; }
+.tile .pos {
+  position: absolute; top: 5px; left: 5px; z-index: 2; display: none; width: 46px; height: 28px; box-sizing: border-box; padding: 0 4px;
+  border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; background: rgba(0,0,0,0.75); color: #fff;
+  font: inherit; font-size: 14px; font-weight: 600; text-align: center; -moz-appearance: textfield;
+}
+.tile .pos::-webkit-inner-spin-button, .tile .pos::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tile.arrange .pos { display: block; }
+.tile.dragging { z-index: 5; opacity: 0.85; cursor: grabbing; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: none; }
+.arrange-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -2px 0 10px; padding: 8px 10px; border-radius: 10px;
+  background: rgba(61,139,255,0.12); border: 1px solid rgba(61,139,255,0.35); font-size: 13px;
+}
+.arrange-bar .a-hint { flex: 1; min-width: 200px; color: var(--hv-text); }
+.arrange-bar .s-status { font-size: 12px; color: var(--hv-muted); }
+.arrange-bar .s-status.err { color: var(--hv-open); }
+.arrange-bar button.s-btn {
+  padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: none;
+  color: var(--hv-text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.arrange-bar button.s-btn.primary { background: var(--hv-accent); border-color: var(--hv-accent); color: #fff; }
+.tile.arrange .size-btn { display: grid; }
+.tile.arrange .bat { display: none !important; }
+.tile.drop { outline: 2px solid var(--hv-accent); outline-offset: 2px; }
+.gear.on { color: var(--hv-accent); border-color: rgba(61,139,255,0.5); }
+.s-hint { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(61,139,255,0.12); color: var(--hv-text); font-size: 12px; line-height: 1.4; }
 .tile {
   position: relative; display: block; padding: 0; margin: 0; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
   overflow: hidden; background: #000; color: #fff; font: inherit; text-align: left; cursor: pointer;
@@ -271,14 +311,38 @@ function detectLabel(id, hass) {
 
 function mainView(cfg) {
   const items = [].concat(cfg.cameras || []).filter(Boolean);
-  return { name: cfg.all_name || "All", items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)) };
+  return { name: cfg.all_name || "All", items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)), columns: Number(cfg.columns) || null };
+}
+
+function packRows(sizes, cols) {
+  const rows = [];
+  const free = (r, c, n) => {
+    for (let y = r; y < r + n; y++) for (let x = c; x < c + n; x++) if (rows[y]?.[x]) return false;
+    return true;
+  };
+  for (const raw of sizes) {
+    const n = cols < 2 ? 1 : raw;
+    let placed = false;
+    for (let r = 0; !placed; r++) {
+      for (let c = 0; c <= cols - n && !placed; c++) {
+        if (free(r, c, n)) {
+          for (let y = r; y < r + n; y++) {
+            rows[y] = rows[y] || [];
+            for (let x = c; x < c + n; x++) rows[y][x] = true;
+          }
+          placed = true;
+        }
+      }
+    }
+  }
+  return Math.max(1, rows.length);
 }
 
 function viewList(cfg) {
   if (!Array.isArray(cfg.views) || !cfg.views.length) return null;
   return cfg.views.map((v, i) => {
     const items = [].concat(v?.cameras || []).filter(Boolean);
-    return { name: v?.name || `View ${i + 1}`, items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)) };
+    return { name: v?.name || `View ${i + 1}`, items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)), columns: Number(v?.columns) || null };
   });
 }
 
@@ -491,6 +555,7 @@ class CameraWallCard extends HTMLElement {
 
   _openSettings() {
     if (this._editing) return;
+    if (this._arrange) this._endArrange(true);
     this._editing = true;
     this._draft = JSON.parse(JSON.stringify(this._baseConfig));
     const ed = document.createElement("camera-wall-card-editor");
@@ -516,10 +581,156 @@ class CameraWallCard extends HTMLElement {
       "div",
       { class: "settings", role: "dialog", "aria-label": "Camera wall settings" },
       h("div", { class: "s-head" }, h("div", { class: "s-title" }, "Cameras and tabs"), cancel, save),
-      h("div", { class: "s-body" }, ed),
+      h(
+        "div",
+        { class: "s-body" },
+        ed,
+      ),
       this._sStatus,
     );
     this.shadowRoot.querySelector("ha-card")?.append(this._settingsEl);
+  }
+
+  _arranging() {
+    const tab = this._tab || "";
+    return !!this._arrange && (tab === "all" || tab.startsWith("v:"));
+  }
+
+  _syncArrange() {
+    const on = this._arranging();
+    this._grid?.classList.toggle("arranging", on);
+    const vis = this._visibleTiles?.() || [];
+    for (const t of this._tiles || []) {
+      t.el.classList.toggle("arrange", on);
+      const i = vis.indexOf(t);
+      if (t.pos && document.activeElement !== t.pos && this.shadowRoot.activeElement !== t.pos) {
+        t.pos.value = i >= 0 ? String(i + 1) : "";
+        t.pos.max = String(vis.length);
+      }
+    }
+  }
+
+  _startArrange() {
+    if (this._editing) this._closeSettings(true);
+    this._arrange = true;
+    this._draft = JSON.parse(JSON.stringify(this._baseConfig));
+    if (!this._arranging()) {
+      const first = [...this._tabsEl.children].find((x) => x.dataset.k === "all" || x.dataset.k?.startsWith("v:"));
+      if (first) first.click();
+    }
+    this._build();
+  }
+
+  _endArrange(revert) {
+    this._arrange = false;
+    this._draft = null;
+    if (revert) this._applyConfig(this._baseConfig);
+    else this._build();
+  }
+
+  _buildArrangeBar() {
+    this._sStatus = h("span", { class: "s-status" });
+    const cancel = h("button", { class: "s-btn", type: "button" }, "Cancel");
+    const save = h("button", { class: "s-btn primary", type: "button" }, "Save");
+    cancel.addEventListener("click", () => this._endArrange(true));
+    save.addEventListener("click", async () => {
+      save.disabled = cancel.disabled = true;
+      const ok = await this._saveSettings();
+      save.disabled = cancel.disabled = false;
+      if (ok) this._endArrange(true);
+    });
+    return h(
+      "div",
+      { class: "arrange-bar" },
+      h("span", { class: "a-hint" }, "Drag cameras to move them, or type a number in a camera's box to send it to that spot. ⤢ makes a camera big. Each tab has its own order."),
+      this._sStatus,
+      cancel,
+      save,
+    );
+  }
+
+  _previewDraft(draft) {
+    this._draft = draft;
+    this._config = { title: "Cameras", refresh: 20, motion_seconds: 90, ...draft };
+    this._orderKey = null;
+    this._renderTabs();
+    this._applyTab();
+    this._layout();
+  }
+
+  _arrangeEdit(fn) {
+    if (!this._arranging() || !this._draft) return;
+    const draft = JSON.parse(JSON.stringify(this._draft));
+    const tab = this._tab;
+    let holder = draft;
+    if (tab.startsWith("v:")) holder = draft.views?.[Number(tab.slice(2))];
+    if (!holder) return;
+    let list = [].concat(holder.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : { ...c }));
+    if (!list.length) list = this._visibleTiles().map((t) => ({ entity: t.cam.entity }));
+    list = fn(list).map((c) => {
+      const out = { ...c };
+      if (!out.size) delete out.size;
+      return out.name || out.size || out.live === false ? out : out.entity;
+    });
+    holder.cameras = list;
+    if (tab === "all" && Array.isArray(draft.views) && draft.views.length) draft.all_tab = true;
+    this._previewDraft(draft);
+  }
+
+  _moveTo(entity, index) {
+    this._arrangeEdit((list) => {
+      const from = list.findIndex((c) => c.entity === entity);
+      if (from < 0) return list;
+      const [item] = list.splice(from, 1);
+      list.splice(Math.max(0, Math.min(list.length, index)), 0, item);
+      return list;
+    });
+  }
+
+  _dragStart(e, t) {
+    if (!this._arranging() || e.button > 0 || e.target.closest?.("input, .size-btn")) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    let target = null;
+    const el = t.el;
+    el.setPointerCapture?.(e.pointerId);
+    const move = (ev) => {
+      if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+      if (!dragging) {
+        dragging = true;
+        el.classList.add("dragging");
+      }
+      el.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY}px)`;
+      el.style.pointerEvents = "none";
+      const under = this.shadowRoot.elementFromPoint(ev.clientX, ev.clientY)?.closest?.(".tile");
+      el.style.pointerEvents = "";
+      const next = this._tiles.find((x) => x.el === under && x !== t) || null;
+      if (next !== target) {
+        target?.el.classList.remove("drop");
+        target = next;
+        target?.el.classList.add("drop");
+      }
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      el.classList.remove("dragging");
+      el.style.transform = "";
+      target?.el.classList.remove("drop");
+      if (dragging) {
+        this._suppressClick = true;
+        setTimeout(() => (this._suppressClick = false), 50);
+      }
+      if (dragging && target) {
+        const vis = this._visibleTiles();
+        this._moveTo(t.cam.entity, vis.indexOf(target));
+      }
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
   }
 
   _closeSettings(revert) {
@@ -597,7 +808,33 @@ class CameraWallCard extends HTMLElement {
     top.append(this._tabsEl);
     this._chips = h("div", { class: "chips" });
     const right = h("div", { class: "right" }, this._chips);
+    this._logKey = `camera-wall-card:log:${location.pathname}:${cfg.title || ""}`;
+    if (this._logHidden === undefined) {
+      try {
+        this._logHidden = localStorage.getItem(this._logKey) === "hidden";
+      } catch (err) {
+        this._logHidden = false;
+      }
+    }
+    if (cfg.log !== false) {
+      const logBtn = h("button", { class: `gear${this._logHidden ? "" : " on"}`, type: "button", title: "Show or hide activity", "aria-label": "Show or hide activity" });
+      logBtn.innerHTML = iconSvg(ICON.list);
+      logBtn.addEventListener("click", () => {
+        this._logHidden = !this._logHidden;
+        try {
+          localStorage.setItem(this._logKey, this._logHidden ? "hidden" : "shown");
+        } catch (err) {}
+        logBtn.classList.toggle("on", !this._logHidden);
+        this._applyLogVisibility();
+        this._layout();
+      });
+      right.append(logBtn);
+    }
     if (this._canEdit()) {
+      const arr = h("button", { class: `gear${this._arrange ? " on" : ""}`, type: "button", title: "Arrange cameras", "aria-label": "Arrange cameras" });
+      arr.innerHTML = iconSvg(ICON.grid);
+      arr.addEventListener("click", () => (this._arrange ? this._endArrange(true) : this._startArrange()));
+      right.append(arr);
       const gear = h("button", { class: "gear", type: "button", title: "Choose cameras and tabs", "aria-label": "Choose cameras and tabs" });
       gear.innerHTML = iconSvg(ICON.cog);
       gear.addEventListener("click", () => this._openSettings());
@@ -605,6 +842,7 @@ class CameraWallCard extends HTMLElement {
     }
     top.append(right);
     card.append(top);
+    if (this._arrange) card.append(this._buildArrangeBar());
 
     const body = h("div", { class: "body" });
     const main = h("div", { class: "main" });
@@ -635,12 +873,14 @@ class CameraWallCard extends HTMLElement {
     body.append(main);
 
     this._logList = null;
+    this._logEl = null;
     if (cfg.log !== false && this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length || t.cam.detections.length)) {
       this._logList = h("ul");
-      const log = h("div", { class: "log" }, h("h3", {}, cfg.log_title || "Activity"), this._logList);
-      body.append(log);
-      body.classList.add("with-log");
+      this._logEl = h("div", { class: "log" }, h("h3", {}, cfg.log_title || "Activity"), this._logList);
+      body.append(this._logEl);
     }
+    this._body = body;
+    this._applyLogVisibility();
     card.append(body);
     this.shadowRoot.replaceChildren(style, card);
     if (this._editing && this._settingsEl) card.append(this._settingsEl);
@@ -666,8 +906,8 @@ class CameraWallCard extends HTMLElement {
     const ago = h("span", { class: "ago" });
     const nm = h("span", { class: "nm" }, cam.name);
     const el = h(
-      "button",
-      { class: "tile", type: "button", title: cam.name, "aria-label": cam.name },
+      "div",
+      { class: "tile", role: "button", tabindex: "0", title: cam.name, "aria-label": cam.name },
       img,
       empty,
       h("span", { class: "shade" }),
@@ -675,15 +915,43 @@ class CameraWallCard extends HTMLElement {
       h("span", { class: "cap" }, nm, ago),
     );
     const t = { cam, el, img, bat, ago, nm, motionTxt, emptyTxt, label: cam.name, visible: false, loaded: false, lastMotion: null, lastDing: null, det: {} };
-    img.addEventListener("load", () => {
-      img.classList.add("ready");
-      t.loaded = true;
+    const sizeBtn = h("button", { class: "size-btn", type: "button", title: "Big or normal size", "aria-label": "Big or normal size" });
+    sizeBtn.innerHTML = iconSvg(ICON.expand);
+    sizeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._arrangeEdit((list) => list.map((c) => (c.entity === cam.entity ? { ...c, size: Number(c.size) === 2 ? undefined : 2 } : c)));
     });
-    img.addEventListener("error", () => {
-      t.loaded = false;
-      emptyTxt.textContent = "No image";
+    sizeBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    el.append(sizeBtn);
+    el.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && e.target === el) {
+        e.preventDefault();
+        if (!this._arranging()) this._openFocus(cam.entity);
+      }
     });
-    this._bindPress(el, () => this._openFocus(cam.entity), () => this._moreInfo(cam.entity));
+    const pos = h("input", { class: "pos", type: "number", min: "1", inputmode: "numeric", title: "Position", "aria-label": "Position" });
+    pos.addEventListener("pointerdown", (e) => e.stopPropagation());
+    pos.addEventListener("click", (e) => e.stopPropagation());
+    pos.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") pos.blur();
+    });
+    pos.addEventListener("change", () => {
+      const n = parseInt(pos.value, 10);
+      if (Number.isFinite(n)) this._moveTo(cam.entity, n - 1);
+    });
+    el.append(pos);
+    t.pos = pos;
+    el.addEventListener("pointerdown", (e) => this._dragStart(e, t));
+    this._bindPress(
+      el,
+      () => {
+        if (!this._arranging() && !this._suppressClick) this._openFocus(cam.entity);
+      },
+      () => {
+        if (!this._arranging()) this._moreInfo(cam.entity);
+      },
+    );
     return t;
   }
 
@@ -899,6 +1167,8 @@ class CameraWallCard extends HTMLElement {
     const recent = (this._config.recent_minutes ?? 30) * 60000;
     const view = this._viewFor(tab);
     const names = new Map();
+    const bigs = new Set();
+    for (const it of (view || mainView(this._config)).items) if (it?.entity && Number(it.size) === 2) bigs.add(it.entity);
     for (const it of mainView(this._config).items) if (it?.entity && it.name) names.set(it.entity, it.name);
     for (const v of viewList(this._config) || []) for (const it of v.items) if (it?.entity && it.name && !names.has(it.entity)) names.set(it.entity, it.name);
     if (view) for (const it of view.items) if (it?.entity && it.name) names.set(it.entity, it.name);
@@ -909,6 +1179,8 @@ class CameraWallCard extends HTMLElement {
       else if (tab === "active") show = [t.lastMotion, t.lastDing].some((x) => x && Date.now() - x < recent);
       else if (tab === "battery") show = this._battery(t.cam) != null;
       t.el.classList.toggle("hidden", !show);
+      t.big = bigs.has(t.cam.entity) && show;
+      t.el.classList.toggle("big", t.big);
       const label = names.get(t.cam.entity) || t.cam.name;
       if (label !== t.label) {
         t.label = label;
@@ -928,6 +1200,7 @@ class CameraWallCard extends HTMLElement {
       this._orderKey = key;
       this._grid.append(...order.map((t) => t.el));
     }
+    this._syncArrange();
     this._syncLive();
   }
 
@@ -999,6 +1272,13 @@ class CameraWallCard extends HTMLElement {
     }
   }
 
+  _applyLogVisibility() {
+    if (!this._body) return;
+    const show = !!this._logEl && !this._logHidden;
+    this._body.classList.toggle("with-log", show);
+    if (this._logEl) this._logEl.style.display = show ? "" : "none";
+  }
+
   _layout() {
     if (!this._grid || !this.isConnected) return;
     const cfg = this._config;
@@ -1008,40 +1288,48 @@ class CameraWallCard extends HTMLElement {
     const rect = grid.getBoundingClientRect();
     const height = Math.max(240, Number(cfg.height) || vh - Math.max(0, rect.top) - 24);
     this.style.setProperty("--cw-height", `${Math.round(height)}px`);
-    grid.classList.remove("fit", "fixed");
-    grid.style.removeProperty("--cols");
-    grid.style.removeProperty("--tile-w");
-    if (cfg.columns) {
-      grid.classList.add("fixed");
-      grid.style.setProperty("--cols", cfg.columns);
+    grid.classList.remove("fit", "fixed", "sized", "one");
+    for (const k of ["--cols", "--tile-w", "--row-h"]) grid.style.removeProperty(k);
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 8;
+    const [aw, ah] = String(cfg.aspect || "16/9").split(/[:/]/).map(Number);
+    const ratio = ah && aw ? ah / aw : 9 / 16;
+    const vis = this._visibleTiles();
+    const sizes = vis.map((t) => (t.big ? 2 : 1));
+    const view = this._viewFor(this._tab || "");
+    const fixedCols = view?.columns || (this._tab === "all" || !view ? Number(cfg.columns) || null : null);
+    if (fixedCols) {
+      const w = (width - gap * (fixedCols - 1)) / fixedCols;
+      grid.classList.add("fixed", "sized");
+      if (fixedCols < 2) grid.classList.add("one");
+      grid.style.setProperty("--cols", fixedCols);
+      grid.style.setProperty("--row-h", `${Math.floor(w * ratio)}px`);
       this._fitFocus();
       return;
     }
     const fitWanted = cfg.fit === true || (cfg.fit !== false && width >= 700);
-    const n = this._visibleTiles().length;
-    if (!fitWanted || !n || !width) {
+    if (!fitWanted || !vis.length || !width) {
       this._fitFocus();
       return;
     }
-    const gap = parseFloat(getComputedStyle(grid).columnGap) || 8;
-    const [aw, ah] = String(cfg.aspect || "16/9").split(/[:/]/).map(Number);
-    const ratio = ah && aw ? ah / aw : 9 / 16;
+    const units = sizes.reduce((a, b) => a + b * b, 0);
     let best = { cols: 1, w: 0 };
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols);
+    for (let cols = 1; cols <= Math.max(units, 2); cols++) {
+      const rows = packRows(sizes, cols);
       let w = (width - gap * (cols - 1)) / cols;
       const fitH = (height - gap * (rows - 1)) / rows;
       if (w * ratio > fitH) w = fitH / ratio;
-      if (w > best.w) best = { cols, w };
+      if (w > best.w + 0.5) best = { cols, w };
     }
     const minW = Number(cfg.min_tile_width ?? 150);
     if (best.w < minW) {
       this._fitFocus();
       return;
     }
-    grid.classList.add("fit");
+    grid.classList.add("fit", "sized");
+    if (best.cols < 2) grid.classList.add("one");
     grid.style.setProperty("--cols", best.cols);
     grid.style.setProperty("--tile-w", `${Math.floor(best.w)}px`);
+    grid.style.setProperty("--row-h", `${Math.floor(best.w * ratio)}px`);
     this._fitFocus();
   }
 
@@ -1394,18 +1682,31 @@ button:disabled { opacity: 0.4; cursor: default; }
 .chosen { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; max-height: 360px; overflow-y: auto; }
 .cam-row { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 2px; border-radius: 6px; }
 .cam-row:hover { background: rgba(127,127,127,0.08); }
-.cam-row .num { width: 20px; flex: none; text-align: right; font-size: 12px; color: var(--secondary-text-color); }
+.cam-row .num-in {
+  width: 46px; flex: none; box-sizing: border-box; padding: 5px 4px; border-radius: 6px; text-align: center; font: inherit; font-size: 13px;
+  border: 1px solid var(--divider-color, #444); background: var(--card-background-color, #1c1c1c); color: var(--primary-text-color); -moz-appearance: textfield;
+}
+.cam-row .num-in::-webkit-inner-spin-button, .cam-row .num-in::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .cam-name { flex: 1; min-width: 0; padding-left: 4px; }
 .cam-name input { padding: 5px 8px; }
 .cam-label { display: flex; align-items: baseline; gap: 8px; font-size: 14px; overflow: hidden; white-space: nowrap; }
 .cam-label small { font-size: 11px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; }
 button.icon { width: 30px; height: 30px; padding: 0; flex: none; font-size: 14px; border-color: transparent; }
 button.icon:hover:not(:disabled) { border-color: var(--divider-color, #444); }
-.links { margin: -2px 0 4px 30px; font-size: 11px; color: var(--secondary-text-color); }
+.links { margin: -2px 0 4px 54px; font-size: 11px; color: var(--secondary-text-color); }
 .seg { display: inline-flex; gap: 2px; padding: 3px; margin: 2px 0 10px; border-radius: 8px; background: rgba(127,127,127,0.12); }
 .seg button { border: 0; padding: 6px 12px; border-radius: 6px; color: var(--secondary-text-color); }
 .seg button.on { background: var(--primary-color); color: var(--text-primary-color, #fff); }
 .check.small { font-size: 12px; color: var(--secondary-text-color); }
+button.icon svg { width: 16px; height: 16px; fill: currentColor; vertical-align: middle; }
+button.icon.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+.seg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.seg-row .seg { margin: 0; }
+.layout-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.layout-row select {
+  padding: 6px 8px; border-radius: 6px; font: inherit; font-size: 13px;
+  border: 1px solid var(--divider-color, #444); background: var(--card-background-color, #1c1c1c); color: var(--primary-text-color);
+}
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; cursor: pointer; }
 `;
 
@@ -1496,18 +1797,15 @@ class CameraWallCardEditor extends HTMLElement {
 
     root.append(h("h4", {}, "Options"));
     root.append(this._check("ding_popup", "Open a camera live when its doorbell rings", true));
-    root.append(this._check("log", "Activity feed", true));
+    root.append(this._check("log", "Activity feed (the list button on the card hides it on one device)", true));
     root.append(this._check("live", "Live video in the grid (off shows refreshing snapshots)", true));
     const refresh = h("input", { type: "number", min: "2", step: "1", value: this._config.refresh ?? 20 });
     refresh.addEventListener("change", () => this._set("refresh", refresh.value ? Number(refresh.value) : null));
-    const cols = h("input", { type: "number", min: "1", step: "1", value: this._config.columns ?? "", placeholder: "Auto" });
-    cols.addEventListener("change", () => this._set("columns", cols.value ? Number(cols.value) : null));
     root.append(
       h(
         "div",
         { class: "row" },
         h("label", { class: "field" }, "Seconds to refresh every snapshot", refresh),
-        h("label", { class: "field" }, "Columns", cols),
       ),
     );
     this.shadowRoot.replaceChildren(style, root);
@@ -1543,7 +1841,11 @@ class CameraWallCardEditor extends HTMLElement {
     const byId = new Map(cams.map((c) => [c.entity, c]));
     const items = () => [].concat(view.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : { ...c })).filter((c) => c.entity);
     const store = (list) => {
-      view.cameras = list.map((c) => (c.name || c.live === false ? c : c.entity));
+      view.cameras = list.map((c) => {
+        const out = { ...c };
+        if (!out.size) delete out.size;
+        return out.name || out.size || out.live === false ? out : out.entity;
+      });
       if (isMain) {
         if (view.cameras.length) this._config.cameras = view.cameras;
         else delete this._config.cameras;
@@ -1598,6 +1900,14 @@ class CameraWallCardEditor extends HTMLElement {
       const label = h("span", { class: "cam-label" }, it.name || fallback);
       if (it.name) label.append(h("small", {}, fallback));
       const rename = h("button", { type: "button", class: "icon", title: "Rename" }, "✎");
+      const big = h("button", { type: "button", class: `icon${Number(it.size) === 2 ? " on" : ""}`, title: "Big tile (twice the width and height)" });
+      big.innerHTML = iconSvg(ICON.expand);
+      big.addEventListener("click", () => {
+        const cur = items();
+        cur[k].size = Number(cur[k].size) === 2 ? undefined : 2;
+        store(cur);
+        rerender();
+      });
       const nameCell = h("div", { class: "cam-name" }, label);
       const rowEl = h("div", { class: "cam-row", title: `${it.entity}${cam?.platform ? ` · ${PLATFORM_NAMES[cam.platform] || cam.platform}` : ""}` });
       rename.addEventListener("click", () => {
@@ -1642,7 +1952,20 @@ class CameraWallCardEditor extends HTMLElement {
         store(items().filter((_, x) => x !== k));
         rerender();
       });
-      rowEl.append(h("span", { class: "num" }, String(k + 1)), nameCell, rename, up, down, del);
+      const num = h("input", { class: "num-in", type: "number", min: "1", max: String(list.length), value: String(k + 1), title: "Type a position to move this camera there" });
+      num.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") num.blur();
+      });
+      num.addEventListener("change", () => {
+        const n = parseInt(num.value, 10);
+        if (!Number.isFinite(n)) return;
+        const cur = items();
+        const [moved] = cur.splice(k, 1);
+        cur.splice(Math.max(0, Math.min(cur.length, n - 1)), 0, moved);
+        store(cur);
+        rerender();
+      });
+      rowEl.append(num, nameCell, rename, big, up, down, del);
       chosen.append(rowEl);
       if (this._showLinks[i]) chosen.append(h("div", { class: "links" }, this._links(cam)));
     });
@@ -1654,6 +1977,29 @@ class CameraWallCardEditor extends HTMLElement {
       rerender();
     });
     linksToggle.append(linksBox, "Show linked motion and doorbell sensors");
+    const colSel = h("select");
+    const curCols = isMain ? this._config.columns : view.columns;
+    for (const n of ["", 1, 2, 3, 4, 5, 6, 7, 8]) {
+      const o = h("option", { value: String(n) }, n === "" ? "Auto (fill the screen)" : `${n}`);
+      if (String(curCols || "") === String(n)) o.selected = true;
+      colSel.append(o);
+    }
+    colSel.addEventListener("change", () => {
+      const n = Number(colSel.value) || null;
+      if (isMain) {
+        if (n) this._config.columns = n;
+        else delete this._config.columns;
+      } else {
+        const vs = [...(this._config.views || [])];
+        const next = { ...vs[i] };
+        if (n) next.columns = n;
+        else delete next.columns;
+        vs[i] = next;
+        this._config.views = vs;
+      }
+      this._emit();
+    });
+    const layoutRow = h("div", { class: "layout-row" }, h("span", {}, "Columns"), colSel);
 
     const search = h("input", { type: "search", placeholder: "Search cameras", value: this._filters[i] || "" });
     const picker = h("div", { class: "list" });
@@ -1711,7 +2057,7 @@ class CameraWallCardEditor extends HTMLElement {
       isMain
         ? h("div", { class: "view-head" }, h("label", { class: "field" }, "Main tab name", name), views.length ? this._check("all_tab", "Show this tab", false) : null)
         : h("div", { class: "view-head" }, h("label", { class: "field" }, "Tab name", name), left, right, remove),
-      seg,
+      h("div", { class: "seg-row" }, seg, layoutRow),
       mode === "pick"
         ? h(
             "div",
