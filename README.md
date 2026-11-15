@@ -55,12 +55,27 @@ With only this line the card picks up every camera from Ring and UniFi Protect, 
 type: custom:camera-wall-card
 ```
 
-### Views
+### Tabs and cameras
 
-Edit the card in the dashboard editor. Under **Views**, add one per property, give it a name, tick its cameras, type your own name for any camera and use the arrows to order them. The YAML it writes looks like this:
+Press the gear in the top right of the card (admins only). It opens a panel where you can:
+
+- Rename the **main tab** and pick which cameras it shows.
+- Add a **property tab** for each property, name it, and pick its cameras.
+- Type your own name for any camera and put the cameras in order.
+
+Changes show on the card as you make them. **Save** writes them to the dashboard so every device gets them. **Cancel** puts everything back. The same editor is also in the dashboard's own card editor.
+
+Under each camera the panel lists the motion and doorbell entities the card linked it to and when they last fired. If the activity feed stays empty, look there first.
+
+The YAML it writes looks like this:
 
 ```yaml
 type: custom:camera-wall-card
+all_name: Overview
+all_tab: true
+cameras:
+  - camera.front_door_live_view
+  - camera.dock_high_resolution_channel
 views:
   - name: Main House
     cameras:
@@ -91,9 +106,11 @@ exclude:
 | --- | --- | --- |
 | `title` | `Cameras` | Card heading |
 | `views` | | Tabs, each `{name, cameras}`. Cameras are entity IDs or `{entity, name, live}`. |
-| `all_tab` | `false` | With views, also show an All tab |
+| `all_name` | `All` | Name of the main tab |
+| `all_tab` | `false` | With views, also show the main tab |
+| `edit_button` | `true` | Show the gear for admins |
 | `live` | `true` | Live video in the tiles. `false` shows snapshots that refresh in rotation. |
-| `cameras` | | Without views: list of camera entities or `{entity, name, group, motion, ding, detections, battery, snapshot, live}` |
+| `cameras` | | Cameras on the main tab: entity IDs or `{entity, name, group, motion, ding, detections, battery, snapshot, live}`. Leave out to show all. |
 | `exclude` | | Cameras to skip |
 | `platform` | `[ring, unifiprotect]` | Integrations to discover from. Set `false` to turn discovery off. |
 | `discover` | `false` | With `cameras:` set, also add every discovered camera after them |

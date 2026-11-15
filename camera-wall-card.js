@@ -1,4 +1,4 @@
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 const ICON = {
   cctv: "M6.03 12.03L8.03 15.5L5.5 18.68L2 12.62L6.03 12.03M17 18V15.29C17.88 14.9 18.5 14.03 18.5 13C18.5 12.43 18.3 11.9 17.97 11.5L19.94 10.35C20.95 9.76 21.3 8.47 20.71 7.46L19.33 5.06C18.74 4.05 17.45 3.7 16.44 4.28L8.31 9C7.36 9.53 7.03 10.75 7.58 11.71L9.08 14.31C9.63 15.26 10.86 15.59 11.81 15.04L13.69 13.96C14 14.65 14.5 15.04 15 15.29V18C15 19.1 15.9 20 17 20H22V18H17Z",
@@ -12,6 +12,7 @@ const ICON = {
   next: "M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z",
   info: "M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
   grid: "M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
 };
 
 const PLATFORM_NAMES = { ring: "Ring", unifiprotect: "UniFi" };
@@ -87,6 +88,31 @@ ha-card {
   border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05);
   color: var(--hv-text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
 }
+.right { display: flex; align-items: center; gap: 6px; }
+.gear {
+  display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05); color: var(--hv-muted); cursor: pointer;
+}
+.gear svg { width: 17px; height: 17px; fill: currentColor; }
+.gear:hover { color: var(--hv-text); }
+ha-card { position: relative; }
+.settings {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column;
+  width: min(600px, 100%); box-sizing: border-box; background: var(--card-background-color, #1c1f24);
+  border-left: 1px solid rgba(255,255,255,0.08); box-shadow: -12px 0 32px rgba(0,0,0,0.45);
+}
+.settings .s-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.settings .s-title { font-size: 16px; font-weight: 600; margin-right: auto; }
+.settings .s-body { flex: 1; overflow-y: auto; padding: 14px; }
+.settings .s-status { padding: 8px 14px; font-size: 12px; color: var(--hv-muted); border-top: 1px solid rgba(255,255,255,0.08); }
+.settings .s-status.err { color: var(--hv-open); }
+.settings .s-status:empty { display: none; }
+.settings button.s-btn {
+  padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: none;
+  color: var(--hv-text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.settings button.s-btn.primary { background: var(--hv-accent); border-color: var(--hv-accent); color: #fff; }
+.settings button.s-btn:disabled { opacity: 0.5; cursor: default; }
 .chip.ok { color: var(--hv-closed); }
 .chip.alert { color: var(--hv-open); background: rgba(255,90,95,0.12); border-color: rgba(255,90,95,0.35); }
 .chip.ding { color: #fff; background: var(--hv-open); border-color: var(--hv-open); }
@@ -106,7 +132,7 @@ ha-card {
 @container cw-card (min-width: 860px) {
   .top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-bottom: 12px; }
   .top .tabs { justify-self: center; }
-  .top .chips { justify-self: end; }
+  .top .right { justify-self: end; }
   .title { margin: 0; }
 }
 .body { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
@@ -243,6 +269,11 @@ function detectLabel(id, hass) {
   return (hass?.states[id]?.attributes.friendly_name || id).replace(/ detected$/i, "");
 }
 
+function mainView(cfg) {
+  const items = [].concat(cfg.cameras || []).filter(Boolean);
+  return { name: cfg.all_name || "All", items, ids: items.map((c) => (typeof c === "string" ? c : c.entity)) };
+}
+
 function viewList(cfg) {
   if (!Array.isArray(cfg.views) || !cfg.views.length) return null;
   return cfg.views.map((v, i) => {
@@ -371,6 +402,11 @@ class CameraWallCard extends HTMLElement {
 
   setConfig(config) {
     if (!config) throw new Error("Invalid configuration");
+    this._baseConfig = config;
+    this._applyConfig(config);
+  }
+
+  _applyConfig(config) {
     this._config = { title: "Cameras", refresh: 20, motion_seconds: 90, ...config };
     this._events = [];
     this._seenEvents = new Set();
@@ -449,6 +485,93 @@ class CameraWallCard extends HTMLElement {
     this._dropLive();
   }
 
+  _canEdit() {
+    return this._config.edit_button !== false && !!this._hass?.user?.is_admin && !!this._hass.callWS;
+  }
+
+  _openSettings() {
+    if (this._editing) return;
+    this._editing = true;
+    this._draft = JSON.parse(JSON.stringify(this._baseConfig));
+    const ed = document.createElement("camera-wall-card-editor");
+    ed.hass = this._hass;
+    ed.setConfig(this._draft);
+    ed.addEventListener("config-changed", (e) => {
+      e.stopPropagation();
+      this._draft = e.detail.config;
+      this._applyConfig(this._draft);
+    });
+    this._editor = ed;
+    this._sStatus = h("div", { class: "s-status" });
+    const cancel = h("button", { class: "s-btn", type: "button" }, "Cancel");
+    const save = h("button", { class: "s-btn primary", type: "button" }, "Save");
+    cancel.addEventListener("click", () => this._closeSettings(true));
+    save.addEventListener("click", async () => {
+      save.disabled = cancel.disabled = true;
+      const ok = await this._saveSettings();
+      save.disabled = cancel.disabled = false;
+      if (ok) this._closeSettings(false);
+    });
+    this._settingsEl = h(
+      "div",
+      { class: "settings", role: "dialog", "aria-label": "Camera wall settings" },
+      h("div", { class: "s-head" }, h("div", { class: "s-title" }, "Cameras and tabs"), cancel, save),
+      h("div", { class: "s-body" }, ed),
+      this._sStatus,
+    );
+    this.shadowRoot.querySelector("ha-card")?.append(this._settingsEl);
+  }
+
+  _closeSettings(revert) {
+    this._editing = false;
+    this._settingsEl?.remove();
+    this._settingsEl = null;
+    this._editor = null;
+    if (revert) this._applyConfig(this._baseConfig);
+  }
+
+  _dashboardPath() {
+    const seg = decodeURIComponent(location.pathname.split("/")[1] || "");
+    return seg && seg !== "lovelace" ? seg : null;
+  }
+
+  async _saveSettings() {
+    const status = (msg, err = false) => {
+      this._sStatus.textContent = msg;
+      this._sStatus.classList.toggle("err", err);
+    };
+    status("Saving…");
+    const urlPath = this._dashboardPath();
+    try {
+      const dash = await this._hass.callWS({ type: "lovelace/config", url_path: urlPath });
+      const target = JSON.stringify(this._baseConfig);
+      const found = [];
+      const walk = (node, parent, key) => {
+        if (Array.isArray(node)) node.forEach((n, i) => walk(n, node, i));
+        else if (node && typeof node === "object") {
+          if (node.type === "custom:camera-wall-card") {
+            found.push({ parent, key, node });
+            return;
+          }
+          for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k], node, k);
+        }
+      };
+      walk(dash);
+      const hit = found.find((f) => JSON.stringify(f.node) === target) || (found.length === 1 ? found[0] : null);
+      if (!hit) throw new Error("couldn't find this card in the dashboard. Use the dashboard's own editor instead");
+      const next = { ...this._draft, type: "custom:camera-wall-card" };
+      hit.parent[hit.key] = next;
+      await this._hass.callWS({ type: "lovelace/config/save", url_path: urlPath, config: dash });
+      this._baseConfig = next;
+      status("");
+      return true;
+    } catch (err) {
+      const msg = err?.message || err?.code || String(err);
+      status(/yaml|not supported|not_supported/i.test(msg) ? "This dashboard is in YAML mode, so it can't be saved from here. Edit the YAML file instead." : `Couldn't save: ${msg}`, true);
+      return false;
+    }
+  }
+
   _discover() {
     return discoverCameras(this._hass, this._config);
   }
@@ -473,7 +596,14 @@ class CameraWallCard extends HTMLElement {
     this._tabsEl = h("div", { class: "tabs", role: "tablist" });
     top.append(this._tabsEl);
     this._chips = h("div", { class: "chips" });
-    top.append(this._chips);
+    const right = h("div", { class: "right" }, this._chips);
+    if (this._canEdit()) {
+      const gear = h("button", { class: "gear", type: "button", title: "Choose cameras and tabs", "aria-label": "Choose cameras and tabs" });
+      gear.innerHTML = iconSvg(ICON.cog);
+      gear.addEventListener("click", () => this._openSettings());
+      right.append(gear);
+    }
+    top.append(right);
     card.append(top);
 
     const body = h("div", { class: "body" });
@@ -513,6 +643,7 @@ class CameraWallCard extends HTMLElement {
     }
     card.append(body);
     this.shadowRoot.replaceChildren(style, card);
+    if (this._editing && this._settingsEl) card.append(this._settingsEl);
 
     this._renderTabs();
     this._applyTab();
@@ -722,10 +853,11 @@ class CameraWallCard extends HTMLElement {
     const views = viewList(this._config);
     const tabs = [];
     if (views) {
-      if (this._config.all_tab) tabs.push(["all", "All", this._tiles.length]);
+      const main = mainView(this._config);
+      if (this._config.all_tab) tabs.push(["all", main.name, main.ids.length || this._tiles.length]);
       views.forEach((v, i) => tabs.push([`v:${i}`, v.name, v.ids.length ? this._tiles.filter((t) => v.ids.includes(t.cam.entity)).length : this._tiles.length]));
     } else {
-      tabs.push(["all", "All", this._tiles.length]);
+      tabs.push(["all", mainView(this._config).name, this._tiles.length]);
       for (const [g, n] of this._groups()) tabs.push([`g:${g}`, g, n]);
     }
     if (this._tiles.some((t) => t.cam.motion.length || t.cam.ding.length)) tabs.push(["active", "Recent", null]);
@@ -765,8 +897,9 @@ class CameraWallCard extends HTMLElement {
   _applyTab() {
     const tab = this._tab;
     const recent = (this._config.recent_minutes ?? 30) * 60000;
-    const view = tab.startsWith("v:") ? viewList(this._config)?.[Number(tab.slice(2))] : null;
+    const view = this._viewFor(tab);
     const names = new Map();
+    for (const it of mainView(this._config).items) if (it?.entity && it.name) names.set(it.entity, it.name);
     for (const v of viewList(this._config) || []) for (const it of v.items) if (it?.entity && it.name && !names.has(it.entity)) names.set(it.entity, it.name);
     if (view) for (const it of view.items) if (it?.entity && it.name) names.set(it.entity, it.name);
     for (const t of this._tiles) {
@@ -796,6 +929,15 @@ class CameraWallCard extends HTMLElement {
       this._grid.append(...order.map((t) => t.el));
     }
     this._syncLive();
+  }
+
+  _viewFor(tab) {
+    if (tab.startsWith("v:")) return viewList(this._config)?.[Number(tab.slice(2))] || null;
+    if (tab === "all") {
+      const main = mainView(this._config);
+      return main.ids.length ? main : null;
+    }
+    return null;
   }
 
   _liveWanted(t) {
@@ -1157,7 +1299,7 @@ class CameraWallCard extends HTMLElement {
     };
     const items = [];
     let lastDay = null;
-    const view = this._tab?.startsWith("v:") ? viewList(this._config)?.[Number(this._tab.slice(2))] : null;
+    const view = this._viewFor(this._tab || "");
     const only = view?.ids.length ? new Set(view.ids) : null;
     for (const e of this._events) {
       if (only && !only.has(e.cam.entity)) continue;
@@ -1323,26 +1465,27 @@ class CameraWallCardEditor extends HTMLElement {
     title.addEventListener("change", () => this._set("title", title.value));
     root.append(h("div", { class: "row" }, h("label", { class: "field" }, "Title", title)));
 
-    root.append(h("h4", {}, "Views"));
+    root.append(h("h4", {}, "Main tab"));
+    root.append(this._renderView({ name: this._config.all_name || "", cameras: this._config.cameras }, -1, views, cams));
+    root.append(h("h4", {}, "Property tabs"));
     root.append(
       h(
         "p",
         { class: "hint" },
         views.length
-          ? "Each view is a tab on the card, for example one per property. Pick its cameras below, give them your own names and put them in order."
-          : `No views yet, so the card shows all ${cams.length} cameras with tabs by area. Add a view for each property to pick cameras and name them.`,
+          ? "Each one is a tab across the top of the card. Name it after the property, pick its cameras, give them your own names and put them in order."
+          : `No property tabs yet. Add one per property to pick its cameras and name them.`,
       ),
     );
     views.forEach((v, i) => root.append(this._renderView(v, i, views, cams)));
-    const add = h("button", { class: "primary", type: "button" }, "Add view");
+    const add = h("button", { class: "primary", type: "button" }, "Add property tab");
     add.addEventListener("click", () => {
-      this._config.views = [...views, { name: `View ${views.length + 1}`, cameras: [] }];
+      this._config.views = [...views, { name: `Property ${views.length + 1}`, cameras: [] }];
       this._emit();
       this._render();
     });
     root.append(h("div", { class: "row" }, add));
 
-    if (views.length) root.append(this._check("all_tab", "Also show an All tab", false));
     root.append(h("h4", {}, "Options"));
     root.append(this._check("ding_popup", "Open a camera live when its doorbell rings", true));
     root.append(this._check("log", "Activity feed", true));
@@ -1388,18 +1531,31 @@ class CameraWallCardEditor extends HTMLElement {
   }
 
   _renderView(view, i, views, cams) {
+    const isMain = i < 0;
     const byId = new Map(cams.map((c) => [c.entity, c]));
     const items = () => [].concat(view.cameras || []).map((c) => (typeof c === "string" ? { entity: c } : { ...c })).filter((c) => c.entity);
     const store = (list) => {
       view.cameras = list.map((c) => (c.name || c.live === false ? c : c.entity));
-      views[i] = view;
-      this._config.views = [...views];
+      if (isMain) {
+        if (view.cameras.length) this._config.cameras = view.cameras;
+        else delete this._config.cameras;
+      } else {
+        views[i] = view;
+        this._config.views = [...views];
+      }
       this._emit();
     };
     const rerender = () => this._render();
 
-    const name = h("input", { type: "text", value: view.name || "", placeholder: "e.g. Main House" });
+    const name = h("input", { type: "text", value: view.name || "", placeholder: isMain ? "All" : "e.g. Main House" });
     name.addEventListener("change", () => {
+      if (isMain) {
+        const v = name.value.trim();
+        if (v && v !== "All") this._config.all_name = v;
+        else delete this._config.all_name;
+        this._emit();
+        return;
+      }
       view.name = name.value;
       store(items());
     });
@@ -1425,7 +1581,7 @@ class CameraWallCardEditor extends HTMLElement {
 
     const chosen = h("div", { class: "chosen" });
     const list = items();
-    if (!list.length) chosen.append(h("p", { class: "hint" }, "No cameras picked yet, so this tab shows every camera. Tick some below."));
+    if (!list.length) chosen.append(h("p", { class: "hint" }, isMain ? "Nothing picked, so this tab shows every camera. Tick cameras below to choose which ones it shows." : "No cameras picked yet, so this tab shows every camera. Tick some below."));
     list.forEach((it, k) => {
       const cam = byId.get(it.entity);
       const input = h("input", { type: "text", value: it.name || "", placeholder: cam?.name || it.entity });
@@ -1515,7 +1671,9 @@ class CameraWallCardEditor extends HTMLElement {
     return h(
       "div",
       { class: "view" },
-      h("div", { class: "view-head" }, h("label", { class: "field" }, "Tab name", name), left, right, remove),
+      isMain
+        ? h("div", { class: "view-head" }, h("label", { class: "field" }, "Main tab name", name), views.length ? this._check("all_tab", "Show this tab", false) : null)
+        : h("div", { class: "view-head" }, h("label", { class: "field" }, "Tab name", name), left, right, remove),
       h("div", { class: "sub" }, "Cameras on this tab"),
       chosen,
       h("div", { class: "sub" }, "Add cameras"),
